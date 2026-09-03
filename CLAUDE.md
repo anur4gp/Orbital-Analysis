@@ -119,9 +119,38 @@ Phase 1 steps 1, 2, 4, 5 done; step 3 (Space-Track registration) still open.
   92.96 min period, empirical period from radius minima agrees to 0.05 min)
 - `tests/test_tle.py` — 31 offline parser tests, all passing
 
-**Next:** register for Space-Track (manual review, days of lead time), then
-Phase 2. Modules import as flat top-level names, so scripts add `src/` to
-`sys.path` rather than using a package.
+Space-Track registration is now **instant** -- no manual review, contrary to
+the Phase 1 step 3 note above. Account is active; credentials in `.env`.
+
+- `src/spacetrack.py` — authenticated client, rate limiter (20/min, 200/hr,
+  under the published 30/300), cached to `data/spacetrack_cache/`
+- `src/probe_cdm.py` — capability probe for `cdm_public`
+
+### `cdm_public` findings (probed 2026-09-03) — these shape Phase 2
+
+`cdm_public` has **16 fields and no covariance matrices**. It is a screening
+summary, not a full CCSDS CDM: no state vectors, no epochs, no RTN covariance.
+
+Available: `CDM_ID`, `TCA`, `PC`, `MIN_RNG`, `EMERGENCY_REPORTABLE`,
+`SAT_1_ID`/`SAT_2_ID`, names, object types, RCS size class, exclusion volumes.
+
+Consequences:
+1. The Monte Carlo baseline must **synthesize covariances** (RTN error model
+   growing with time since epoch), propagating state from TLEs via SGP4. This
+   is a stated modeling assumption, not a data product.
+2. `PC` is 18 SDS's own published collision probability — a real benchmark to
+   compare against, but *not* reproducible exactly, since it was computed from
+   the covariance we don't have. Differences mix covariance-model error with
+   method error; say so explicitly rather than claiming validation.
+3. `PC` and `EMERGENCY_REPORTABLE` are genuine **labels for the Phase 4 risk
+   triage classifier** — this is the strongest use of the feed.
+4. The feed is pre-filtered to high-risk events: every sampled row had
+   `EMERGENCY_REPORTABLE=Y` and `PC > 1e-4`. There are **no negative examples**,
+   so a triage classifier needs low-risk cases generated from screening the
+   catalog directly, not drawn from this feed.
+
+**Next:** Phase 2. Modules import as flat top-level names, so scripts add
+`src/` to `sys.path` rather than using a package.
 
 ### Phase 1 steps, in order (after setup above is done)
 
