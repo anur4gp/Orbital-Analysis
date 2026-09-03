@@ -41,6 +41,8 @@ class Event:
     sat2_name: str
     sat1_type: str
     sat2_type: str
+    sat1_rcs: str               # RCS size class: SMALL / MEDIUM / LARGE
+    sat2_rcs: str
     sat1_excl_vol: float | None
     sat2_excl_vol: float | None
 
@@ -68,6 +70,8 @@ def parse_event(row: dict) -> Event:
         sat2_name=(row.get("SAT_2_NAME") or "").strip(),
         sat1_type=(row.get("SAT1_OBJECT_TYPE") or "").strip(),
         sat2_type=(row.get("SAT2_OBJECT_TYPE") or "").strip(),
+        sat1_rcs=(row.get("SAT1_RCS") or "").strip(),
+        sat2_rcs=(row.get("SAT2_RCS") or "").strip(),
         sat1_excl_vol=_to_float(row.get("SAT_1_EXCL_VOL")),
         sat2_excl_vol=_to_float(row.get("SAT_2_EXCL_VOL")),
     )
@@ -165,18 +169,27 @@ def build_geometry(event: Event, tles: dict) -> Geometry | None:
     )
 
 
-def deduplicate(events: list[Event]) -> list[Event]:
-    """Collapse the two filings of each conjunction into one.
+def deduplicate(events: list[Event], tca_tolerance_s: float = 900.0) -> list[Event]:
+    """Collapse repeated filings of the same conjunction into one.
 
     cdm_public reports every event twice -- once with each object as primary
-    -- so an unordered (id, id, TCA) key removes the mirror image. Leaving
-    them in would double-count during calibration and leak between train and
-    test in Phase 4.
+    -- and also re-files it as the estimate is refined, each revision landing
+    at a slightly different TCA. So an exact-TCA key is not enough: events are
+    grouped by unordered object pair, then merged when their TCAs fall within
+    `tca_tolerance_s`. Leaving duplicates in would double-count during
+    calibration and leak between train and test in Phase 4.
     """
-    seen, out = set(), []
+    by_pair: dict[frozenset, list[Event]] = {}
     for e in events:
-        key = (frozenset(e.object_ids), e.tca.replace(microsecond=0))
-        if key not in seen:
-            seen.add(key)
-            out.append(e)
-    return out
+        by_pair.setdefault(frozenset(e.object_ids), []).append(e)
+
+    out = []
+    for group in by_pair.values():
+        group.sort(key=lambda e: e.tca)
+        kept: list[Event] = []
+        for e in group:
+            if kept and (e.tca - kept[-1].tca).total_seconds() <= tca_tolerance_s:
+                continue  # same conjunction, later revision
+            kept.append(e)
+        out.extend(kept)
+    return sorted(out, key=lambda e: e.tca)

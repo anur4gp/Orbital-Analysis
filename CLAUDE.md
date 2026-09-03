@@ -149,7 +149,50 @@ Consequences:
    so a triage classifier needs low-risk cases generated from screening the
    catalog directly, not drawn from this feed.
 
-**Next:** Phase 2. Modules import as flat top-level names, so scripts add
+### Phase 2 status: Monte Carlo baseline built
+
+Covariance model = **Option B**: diagonal RTN per object,
+`diag(sigma_R^2, (k_T sigma_R)^2, (k_N sigma_R)^2)`, ratios FIXED at
+k_T = 10, k_N = 1.5, only the scale fitted. Fixes surrogate dimension **k = 6**.
+
+- `src/covariance.py` — RTN basis, covariance rotation, combined relative
+  covariance (each object rotated to inertial BEFORE summing)
+- `src/calibrate.py` — fits sigma_R to rebuilt-vs-reported miss spread
+- `src/montecarlo.py` — short-term encounter model, encounter-plane
+  projection, MC Pc, independent polar-quadrature Pc, small-disk closed form
+- `src/run_montecarlo.py` — the baseline run
+- `tests/test_covariance.py` (22), `tests/test_montecarlo.py` (18)
+
+Calibrated: **sigma_R = 95 m, sigma_T = 953 m, sigma_N = 143 m** — consistent
+with published TLE accuracy, and derived from our own data, not assumed.
+
+Validated: MC and quadrature agree within MC error bars (max |z| = 1.4) —
+two independent methods, so the implementation is cross-checked.
+
+**Cost result that motivates Phase 3:** at Pc ~ 4e-6, 10k and 100k draws
+return ZERO hits. ~22 million draws are needed for 10% relative error,
+~2.2 billion for 1%. Error falls as 1/sqrt(N), so 10x accuracy costs 100x.
+
+### Known caveats — carry these into the writeup
+
+1. Our Pc runs **10-100x below 18 SDS's published PC**. Expected, and the
+   drivers are separable: Pc scales as HBR^2, and our hard-body radii
+   (1-4 m from RCS size class) are almost certainly smaller than the
+   operational values; our rebuilt miss distances also differ from theirs by
+   ~1 km. Do NOT present agreement with PC as validation.
+2. Calibration matches the aggregate error scale but has **negative per-event
+   correlation (-0.53)** — the model captures how big TLE error is, not which
+   conjunctions are worst.
+3. `EXCL_VOL` is a km-scale SCREENING volume keyed to object class
+   (debris 1, rocket body 3, payload 5), **not** a hard-body radius. Using it
+   as HBR would inflate Pc by ~6 orders of magnitude.
+4. Residual-vs-TLE-age correlation is only -0.16, so the data does **not**
+   support adding a time-growth term (Option D). Staying with B is empirical.
+5. One event showed a 20.8 km rebuild error — far outside plausible TLE
+   error. Likely a maneuver or stale elements; identify before it
+   contaminates Phase 4.
+
+**Next:** Phase 3. Modules import as flat top-level names, so scripts add
 `src/` to `sys.path` rather than using a package.
 
 ### Phase 1 steps, in order (after setup above is done)

@@ -97,3 +97,9 @@ def sample_relative_offsets(
         vals, vecs = np.linalg.eigh(cov)
         factor = vecs @ np.diag(np.sqrt(np.clip(vals, 0.0, None)))
     return rng.standard_normal((n, 3)) @ factor.T
+
+
+# Fitted by src/calibrate.py against 37 deduplicated cdm_public events, holding
+# k_T and k_N fixed. See CLAUDE.md for the caveat: this reproduces the overall
+# scale of TLE error, not which individual events are worst.
+CALIBRATED_SIGMA_R_KM = 0.0953
