@@ -108,7 +108,20 @@ domain.
 
 ## Current status
 
-Setup not yet complete. No code written yet.
+Setup done (folders, venv on Python 3.9, deps, requirements.txt, git).
+Phase 1 steps 1, 2, 4, 5 done; step 3 (Space-Track registration) still open.
+
+- `src/tle.py` — TLE parser + checksum validation
+- `src/data_fetch.py` — CelesTrak GP fetch, cached to `data/tle_cache/` with a
+  2 h freshness window
+- `src/propagation.py` — SGP4 wrappers, error-code checking, derived quantities
+- `src/validate_iss.py` — ISS sanity check, all passing (419 km mean altitude,
+  92.96 min period, empirical period from radius minima agrees to 0.05 min)
+- `tests/test_tle.py` — 31 offline parser tests, all passing
+
+**Next:** register for Space-Track (manual review, days of lead time), then
+Phase 2. Modules import as flat top-level names, so scripts add `src/` to
+`sys.path` rather than using a package.
 
 ### Phase 1 steps, in order (after setup above is done)
 
