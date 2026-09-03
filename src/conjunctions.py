@@ -163,3 +163,20 @@ def build_geometry(event: Event, tles: dict) -> Geometry | None:
         tle_age1_days=t1.age_days(event.tca),
         tle_age2_days=t2.age_days(event.tca),
     )
+
+
+def deduplicate(events: list[Event]) -> list[Event]:
+    """Collapse the two filings of each conjunction into one.
+
+    cdm_public reports every event twice -- once with each object as primary
+    -- so an unordered (id, id, TCA) key removes the mirror image. Leaving
+    them in would double-count during calibration and leak between train and
+    test in Phase 4.
+    """
+    seen, out = set(), []
+    for e in events:
+        key = (frozenset(e.object_ids), e.tca.replace(microsecond=0))
+        if key not in seen:
+            seen.add(key)
+            out.append(e)
+    return out

@@ -26,13 +26,17 @@ expensive optimizer out of the runtime path.
     designs/maximin_n64_d6.csv     # 64 points in 6 dims, one row per point
     designs/maxpro_n64_d6.csv
 
-Convention: values scaled to the unit hypercube [0,1]^d, no header row, one
-sample per line. `src/` maps [0,1]^d onto the physical uncertainty ranges,
-so the designs stay independent of any particular conjunction event.
+Both `pt_maximin_lhd(n, k, M, Nmax, Nswap, p, tolerance)` and
+`pt_maxpro_lhd(n, k, M, Nmax, Nswap, tolerance)` return `Design` as an n x k
+matrix of **integer levels 1..n**, column-major -- not unit-scaled. The
+loader maps levels to the unit hypercube with `(level - 0.5) / n`, then onto
+the physical uncertainty ranges, so designs stay independent of any
+particular conjunction event.
+
+Write CSVs as levels or as [0,1] values; note which in the filename.
 
 ## Dimensions this feeds (Phase 3)
 
-The surrogate's input space is the uncertainty parameterization of a
-conjunction — position/velocity error components for both objects. d is set
-by the covariance model chosen in Phase 2, so generate designs after that is
-settled, not before.
+Phase 2 settled on **Option B** (diagonal RTN covariance per object), which
+fixes **k = 6**: three position-error components for each of the two objects.
+Generate designs at k = 6.
