@@ -1,0 +1,82 @@
+% Included by project_log.tex. Regenerate the numbers with
+%   ./venv/bin/python src/run_surrogate.py
+
+\begin{table}[htbp]
+\centering
+\caption{Surrogate accuracy against a 3000-point held-out test set.
+         RMSE is in $\log_{10}\Pc$, i.e.\ orders of magnitude. Every design
+         type gets five replicates: parallel tempering is seeded from
+         \texttt{random\_device}, so repeated runs give genuinely different
+         designs. Spread is the standard deviation across replicates.}
+\label{tab:surrogate}
+\begin{tabular}{rlSSS}
+\toprule
+{$n$} & Design & {RMSE} & {Spread} & {Fit time (\si{\second})} \\
+\midrule
+32  & MaxPro (PT) & 0.034 & 0.001 & 0.15 \\
+32  & Random LHD  & 0.046 & 0.024 & 0.18 \\
+32  & Uniform     & 0.043 & 0.015 & 0.19 \\
+\midrule
+64  & MaxPro (PT) & 0.029 & 0.001 & 0.39 \\
+64  & Random LHD  & 0.033 & 0.009 & 0.37 \\
+64  & Uniform     & 0.045 & 0.013 & 0.28 \\
+\midrule
+128 & MaxPro (PT) & 0.018 & 0.003 & 0.89 \\
+128 & Random LHD  & 0.022 & 0.004 & 1.06 \\
+128 & Uniform     & 0.033 & 0.014 & 1.20 \\
+\midrule
+256 & MaxPro (PT) & 0.006 & 0.003 & 4.21 \\
+256 & Random LHD  & 0.006 & 0.001 & 4.73 \\
+256 & Uniform     & 0.005 & 0.001 & 5.32 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection*{Reading the benchmark honestly}
+
+\worked{The surrogate is accurate in absolute terms. At $n=64$ the RMSE is
+\num{0.029} orders of magnitude -- roughly \SI{7}{\percent} in $\Pc$ --
+from 64 training evaluations, against a quantity spanning 13 orders of
+magnitude. A single prediction costs \SI{8.3}{\micro\second} against
+$\sim$\num{22000000} Monte Carlo draws for \SI{10}{\percent} accuracy at
+one representative event.}
+
+\worked{\textbf{The clearest advantage of parallel tempering is variance,
+not mean accuracy.} At $n=32$ MaxPro's RMSE spread across replicates is
+$\pm\num{0.001}$ against $\pm\num{0.024}$ for random Latin hypercubes --
+more than twenty times more consistent. A random design is a lottery: some
+draws are as good as an optimised one, others are much worse. With a
+one-shot expensive evaluation budget, reproducibility is worth as much as
+the mean improvement, and this is the practitioner-facing argument for the
+method.}
+
+\failed{\textbf{The $2$--$3\times$ advantage in the $\psi$ criterion does
+not translate into a $2$--$3\times$ accuracy advantage.} Mean RMSE
+improves by only $1.1$--$1.8\times$ over random LHD and uniform sampling
+at $n \le 128$, and at $n=256$ the advantage disappears entirely
+($0.99\times$ vs.\ random LHD, $0.74\times$ vs.\ uniform). Better
+space-filling by the criterion is not the same as better surrogate
+accuracy, and this should be stated plainly rather than glossed.}
+
+\failed{At $n=256$ every design type converges to RMSE $\approx
+\num{0.006}$. The target function $\log_{10}\Pc$ is smooth and
+low-complexity, so once the box is adequately covered the design choice
+stops mattering. \textbf{The interesting regime is small $n$}, which is
+also the regime that matters when each evaluation is expensive.}
+
+\gotcha{An earlier version of this benchmark compared one parallel-tempering
+design against \emph{one} random draw, and reported MaxPro losing at
+$n=128$ ($0.94\times$). That was sampling noise in the baseline, not a real
+effect. Comparing a deterministic method against a single random
+realisation is not a valid comparison; all figures above use five
+replicates per design type.}
+
+\subsubsection*{Points needed to match MaxPro at $n=64$}
+
+Taking MaxPro at $n=64$ (RMSE \num{0.029}) as the target, random Latin
+hypercubes first reach it at $n=128$ and uniform sampling at $n=256$ --
+nominally $2\times$ and $4\times$ the evaluation budget. Given the
+replicate spreads in Table~\ref{tab:surrogate} and the coarse grid of
+sizes tested, these factors should be read as indicative rather than
+precise; a finer sweep of $n$ would be needed to state them with
+confidence.

@@ -238,9 +238,57 @@ Caveat: the identity holds *given the model* — circular hard body, Gaussian
 uncertainty, short-term encounter. Slow encounters (vrel < 1 km/s, currently
 filtered) fall outside it.
 
-**Next:** Phase 3 step 2 — evaluate expensive MC Pc at the design points to
-build training labels, then fit the GP. Modules import as flat top-level
-names, so scripts add `src/` to `sys.path` rather than using a package.
+### Phase 3 step 2: surrogate trained and benchmarked
+
+- `src/surrogate.py` — GP with ARD squared-exponential kernel, numpy
+  Cholesky, hyperparameters by marginal likelihood (scipy L-BFGS-B, bounded)
+- `src/run_surrogate.py` — the accuracy/cost benchmark
+
+**Labels come from quadrature, not Monte Carlo — this was forced.** Pc spans
+12.8 orders of magnitude over the box; brute-force MC labels only 28% of
+design points at 1e8 draws, and 19/64 points sit below Pc = 1e-12 where no
+MC ever reaches. The quadrature is exact here and agrees with MC wherever MC
+works at all. This *strengthens* the motivation: brute force is not merely
+expensive for rare events, it is unusable across most of the space.
+
+Results (RMSE in log10 Pc, 3000-point held-out test set, 5 replicates each):
+
+| n | MaxPro | random LHD | uniform |
+|---|---|---|---|
+| 32 | 0.034 +/-0.001 | 0.046 +/-0.024 | 0.043 +/-0.015 |
+| 64 | 0.029 +/-0.001 | 0.033 +/-0.009 | 0.045 +/-0.013 |
+| 128 | 0.018 +/-0.003 | 0.022 +/-0.004 | 0.033 +/-0.014 |
+| 256 | 0.006 +/-0.003 | 0.006 +/-0.001 | 0.005 +/-0.001 |
+
+Honest reading:
+1. The surrogate works: 0.029 orders of magnitude (~7% in Pc) from 64
+   training points, one prediction in 8.3 us vs ~22M MC draws.
+2. **MaxPro's real advantage is variance, not mean accuracy** — spread
+   +/-0.001 vs +/-0.024 for random LHD at n=32, 20x more consistent. With a
+   one-shot expensive budget, a random design is a lottery.
+3. **The 2-3x psi advantage does NOT become a 2-3x accuracy advantage.**
+   Mean RMSE gains are only 1.1-1.8x at n<=128, and vanish at n=256.
+   State this plainly in the writeup.
+4. At n=256 all designs converge — log10 Pc is smooth, so once the box is
+   covered the design stops mattering. The interesting regime is small n.
+
+**Methodological trap hit and fixed:** an earlier run compared ONE parallel
+tempering design against ONE random draw and showed MaxPro losing at n=128
+(0.94x). That was baseline sampling noise. Never compare a deterministic
+method against a single random realization.
+
+### Writeup reference sheet
+
+`writeup/project_log.tex` + `writeup/surrogate_results.tex` — LaTeX-safe
+running log: what worked, what didn't, problems hit, all measured numbers
+with `\label`s for cross-referencing. Regenerate the surrogate table with
+`python src/run_surrogate.py`. NOT yet compile-verified (no LaTeX toolchain
+on this machine); structurally checked for brace/environment balance and
+siunitx column validity.
+
+**Next:** Phase 4 (risk triage classifier) or Phase 5 (writeup). Modules
+import as flat top-level names, so scripts add `src/` to `sys.path` rather
+than using a package.
 
 ### Phase 1 steps, in order (after setup above is done)
 
