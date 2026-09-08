@@ -192,8 +192,55 @@ return ZERO hits. ~22 million draws are needed for 10% relative error,
    error. Likely a maneuver or stale elements; identify before it
    contaminates Phase 4.
 
-**Next:** Phase 3. Modules import as flat top-level names, so scripts add
-`src/` to `sys.path` rather than using a package.
+### Phase 3 status: designs built, parameter space fixed at 4-D
+
+`reference/lhd/pt_maxpro.cpp` (pybind11 port of the RUSIS MaxPro parallel
+tempering) builds and runs. Build with:
+
+    cd reference/lhd && ../../venv/bin/python setup.py build_ext --inplace
+
+- `src/designs.py` — extension wrapper, CSV design cache, numpy
+  reimplementations of psi and phi_p, random-LHD and uniform baselines
+- `src/paramspace.py` — the 4-D primary and 6-D ablation parameter spaces
+- `tests/test_paramspace.py` (15)
+
+The numpy psi matches the C++ extension to 6 decimals. Parallel tempering
+beats the best of 20 random LHDs by **2.1-3.1x on psi**, at 0.2-1.4s per
+design (paid once; designs are static artifacts).
+
+### Why the surrogate is 4-D, not 6-D — verified, not assumed
+
+The obvious reading of "space-filling design instead of Monte Carlo" does
+**not** work: Pc is a rare-event indicator integral, and a 256-point design
+returns zero hits just as 100k random draws do. Designs accelerate smooth
+integrands. The construction that works is a surrogate over the
+**encounter-parameter space**, trained on expensive MC evaluations at design
+points, amortized across the catalog.
+
+Pc depends on 6 raw parameters (mu 2, C 3, HBR 1) but only **4** after
+exploiting two exact invariances: the hard-body disk is rotation symmetric,
+and Pc is covariant under uniform scaling of all lengths. Verified
+numerically, not asserted:
+
+| claim | cases | max rel err |
+|---|---|---|
+| rotation invariance | 300 | 8.3e-13 |
+| scale invariance | 300 | 9.8e-13 |
+| 4-D reduction reproduces Pc | 200 | 8.4e-13 |
+| Pc even in each mu component | 200 | 6.2e-16 |
+| 6-D -> 4-D -> Pc round trip | 200 | 5.5e-13 |
+
+Measured fill distance: k=4/n=64 gives 0.397; matching that in 6-D needs
+**~500-900 points**, i.e. 8-14x more expensive MC runs for identical
+accuracy. The 6-D space is kept as an ablation to show this empirically.
+
+Caveat: the identity holds *given the model* — circular hard body, Gaussian
+uncertainty, short-term encounter. Slow encounters (vrel < 1 km/s, currently
+filtered) fall outside it.
+
+**Next:** Phase 3 step 2 — evaluate expensive MC Pc at the design points to
+build training labels, then fit the GP. Modules import as flat top-level
+names, so scripts add `src/` to `sys.path` rather than using a package.
 
 ### Phase 1 steps, in order (after setup above is done)
 
