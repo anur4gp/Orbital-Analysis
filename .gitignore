@@ -8,3 +8,7 @@ __pycache__/
 # Raw pulls — decide case by case whether to version specific files
 data/*
 !data/.gitkeep
+
+# Compiled pybind11 extension (platform-specific, rebuild with setup.py)
+reference/lhd/build/
+*.so
