@@ -286,9 +286,61 @@ with `\label`s for cross-referencing. Regenerate the surrogate table with
 on this machine); structurally checked for brace/environment balance and
 siunitx column validity.
 
-**Next:** Phase 4 (risk triage classifier) or Phase 5 (writeup). Modules
-import as flat top-level names, so scripts add `src/` to `sys.path` rather
-than using a package.
+### Phase 4 status: triage classifier built and evaluated
+
+- `src/screening.py` — catalog conjunction screening: coarse grid, per-pair
+  local minima on a rolling window, analytic linear-motion filter, parabolic
+  SGP4 refinement
+- `src/dataset.py`, `src/build_dataset.py` — cheap pre-Pc features, log10(Pc)
+  labels, multi-catalog multi-day build
+- `src/triage.py`, `src/run_triage.py` — full-recall evaluation
+- `writeup/phase4_results.tex`
+
+**Dataset:** 337,789 conjunctions from Fengyun-1C (1971 obj), Cosmos-2251
+(584) and Iridium-33 (111) debris over 7 days each. 352 positives (0.104%) at
+log10(Pc) > -10. Regenerate with `python src/build_dataset.py` (~11 min);
+`data/triage_dataset.csv` is gitignored.
+
+**Zero conjunctions reached the operational Pc > 1e-4 threshold.** A debris
+cloud over one week contains no operationally red events, so the label
+threshold is a stated choice, not inherited. Method ordering is unchanged at
+1e-8 and 1e-12.
+
+**Results** (kept = fraction passed on for expensive analysis; lower better
+at equal recall):
+
+| split | model | kept | recall | missed |
+|---|---|---|---|---|
+| day | miss-distance cut | 1.41% | 100.0% | 0 |
+| day | logistic regression | 0.92% | 100.0% | 0 |
+| day | gradient boosting | 100.0% | 100.0% | 0 |
+| object | miss-distance cut | 1.15% | **97.2%** | 1 |
+| object | logistic regression | 0.82% | 100.0% | 0 |
+| object | gradient boosting | 100.0% | 100.0% | 0 |
+
+1. Logistic regression beats the analyst baseline: ~a third fewer expensive
+   analyses, and it holds full recall on the object split where the
+   miss-distance cut misses one.
+2. **Gradient boosting fails outright** — keeps 100%, and its *oracle* is
+   also ~100%, so the rare positives are genuinely unrankable by it. At 0.1%
+   positive rate, model capacity hurts.
+3. Miss distance alone has only +0.60 rank correlation with log10(Pc);
+   projected covariance depends on geometry it does not capture.
+
+**Two traps hit and fixed:**
+- Thresholds set from *in-sample* training scores made GB's operating point
+  collapse and masked the baseline's recall failure. Always out-of-fold.
+- Screening's coarse gate must be wide (530 km at 60 s), since objects move
+  ~960 km between samples; the analytic linear-motion filter then removes 91%
+  of candidates with byte-identical output (29.5s -> 7.2s per catalog-day).
+
+**Evaluation must use full recall, not accuracy or AUC** — at 0.1% positives
+a constant "no" scores 99.9%. Splits must be grouped (by day or by object),
+never random, or the same pair leaks across the split.
+
+**Next:** Phase 5 (writeup). `writeup/project_log.tex` + `surrogate_results.tex`
++ `phase4_results.tex` hold the material. Modules import as flat top-level
+names, so scripts add `src/` to `sys.path` rather than using a package.
 
 ### Phase 1 steps, in order (after setup above is done)
 
