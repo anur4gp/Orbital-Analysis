@@ -14,6 +14,7 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
+\usepackage{multirow}
 \usepackage{longtable}
 \usepackage{siunitx}
 \usepackage{hyperref}
@@ -488,6 +489,8 @@ the optimiser comes from \texttt{scipy}.
 % --- RESULTS TABLE INSERTED BELOW WHEN THE BENCHMARK RUN COMPLETES ---
 \input{surrogate_results}
 
+\input{phase4_results}
+
 % =====================================================================
 \section{Reproducing everything}\label{sec:repro}
 
@@ -502,6 +505,8 @@ the optimiser comes from \texttt{scipy}.
 \texttt{python src/calibrate.py}        & Table~\ref{tab:calib} \\
 \texttt{python src/run\_montecarlo.py}  & Table~\ref{tab:mccost} \\
 \texttt{python src/run\_surrogate.py}   & Table~\ref{tab:surrogate} \\
+\texttt{python src/build\_dataset.py}   & Table~\ref{tab:dataset} \\
+\texttt{python src/run\_triage.py}      & Table~\ref{tab:triage} \\
 \texttt{python tests/test\_paramspace.py} & Table~\ref{tab:invariance} \\
 \bottomrule
 \end{longtable}

@@ -1,0 +1,157 @@
+% Included by project_log.tex. Regenerate with
+%   ./venv/bin/python src/build_dataset.py && ./venv/bin/python src/run_triage.py
+
+\section{Phase 4: risk triage classifier}\label{sec:phase4}
+
+\subsection{Manufacturing the negative class}
+
+\texttt{cdm\_public} contains no negative examples: every row is
+\texttt{EMERGENCY\_REPORTABLE} with $\texttt{PC} > 10^{-4}$. A classifier
+trained on it learns to answer ``yes'' and scores \SI{100}{\percent}.
+Negatives were therefore manufactured by screening debris catalogues
+directly -- dense, co-orbital populations that generate many close
+approaches per object.
+
+\begin{table}[htbp]
+\centering
+\caption{Screened dataset: three debris families, seven days each, 60\,s
+         coarse grid, refined to \SI{50}{\kilo\meter}.}
+\label{tab:dataset}
+\begin{tabular}{lrrr}
+\toprule
+Catalogue & Objects & Conjunctions & $\log_{10}\Pc > -10$ \\
+\midrule
+Fengyun-1C debris   & 1971 & 308{,}264 & 324 \\
+Cosmos-2251 debris  &  584 &  28{,}255 &  26 \\
+Iridium-33 debris   &  111 &   1{,}270 &   2 \\
+\midrule
+Total               & 2666 & 337{,}789 & 352 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The positive rate is \SI{0.104}{\percent}. $\log_{10}\Pc$ spans
+$-29843$ to $-4.5$, with a median of $-5422$: most screened pairs miss by
+tens of standard deviations, where $\Pc$ underflows to exactly zero in
+double precision. Labels are therefore computed directly in logarithms,
+without ever forming $\Pc$, or the entire negative class collapses to a
+single value.
+
+\gotcha{\textbf{Not one conjunction reached the operational
+$\Pc > 10^{-4}$ threshold.} A debris cloud over a one-week window simply
+contains no operationally red events, so the label threshold must be
+justified rather than inherited. Results below use $10^{-10}$; the ordering
+of methods is unchanged at $10^{-8}$ and $10^{-12}$.}
+
+\subsection{Screening cost and the linear-motion filter}
+
+The coarse gate must be wide. At \SI{16}{\kilo\meter\per\second} closing
+speed a \SI{60}{\second} grid steps \SI{960}{\kilo\meter}, so a pair passing
+within \SI{1}{\kilo\meter} may never appear closer than
+$\sim$\SI{450}{\kilo\meter} at any sampled instant. Screening at a narrow
+threshold on a coarse grid therefore misses almost every genuine approach.
+The gate used is
+\begin{equation}
+  d_{\text{gate}} = d_{\text{target}}
+    + \tfrac{1}{2}\, v_{\max}\, \Delta t,
+  \label{eq:gate}
+\end{equation}
+which is \SI{530}{\kilo\meter} for the parameters above -- and which leaves
+essentially every pair a candidate.
+
+\worked{An analytic filter makes that affordable. Near closest approach
+relative motion is nearly rectilinear, so from sampled relative position
+$\Delta r$ and velocity $\Delta v$ the minimum follows in closed form at
+$t^{*} = -(\Delta r \cdot \Delta v)/\|\Delta v\|^2$. Applying this to every
+local minimum removed \SI{91}{\percent} of candidates (163{,}806 to
+14{,}528) with \emph{byte-identical} output, cutting a Cosmos-2251 day from
+\SI{29.5}{\second} to \SI{7.2}{\second}.}
+
+\subsection{Evaluation design}
+
+Accuracy and AUC are near-meaningless at a \SI{0.1}{\percent} positive rate;
+a constant ``no'' scores \SI{99.9}{\percent}. The operational question is
+asymmetric -- missing a high-risk conjunction is unacceptable, passing a
+harmless one costs only compute -- so models are compared by \textbf{how
+much of the catalogue they discard at full recall}.
+
+Two design choices guard against self-deception:
+\begin{enumerate}
+  \item \textbf{The baseline is a miss-distance cut}, not random. That is
+        what an analyst does without a model. A classifier that cannot beat
+        one threshold on one feature is not worth having.
+  \item \textbf{Splits are grouped, not random.} A day split holds out the
+        last two days; an object split assigns objects to train or test and
+        keeps only pairs whose \emph{both} members are held out, discarding
+        cross pairs. Random splitting would leak the same object pair into
+        both halves at slightly different times.
+\end{enumerate}
+
+\begin{table}[htbp]
+\centering
+\caption{Triage performance. ``Kept'' is the fraction of conjunctions passed
+         on for expensive analysis; lower is better at equal recall.
+         Thresholds are set from out-of-fold predictions on training data,
+         then applied unchanged.}
+\label{tab:triage}
+\begin{tabular}{llrrr}
+\toprule
+Split & Model & Kept & Recall & Missed \\
+\midrule
+\multirow{3}{*}{Day}
+ & Miss-distance cut (baseline) & \SI{1.41}{\percent} & \SI{100.0}{\percent} & 0 \\
+ & Logistic regression          & \SI{0.92}{\percent} & \SI{100.0}{\percent} & 0 \\
+ & Gradient boosting            & \SI{100.0}{\percent} & \SI{100.0}{\percent} & 0 \\
+\midrule
+\multirow{3}{*}{Object}
+ & Miss-distance cut (baseline) & \SI{1.15}{\percent} & \SI{97.2}{\percent}  & 1 \\
+ & Logistic regression          & \SI{0.82}{\percent} & \SI{100.0}{\percent} & 0 \\
+ & Gradient boosting            & \SI{100.0}{\percent} & \SI{100.0}{\percent} & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Reading the result}
+
+\worked{Logistic regression beats the analyst's baseline on both splits. It
+passes \SIrange{0.82}{0.92}{\percent} of conjunctions for expensive analysis
+against \SIrange{1.15}{1.41}{\percent} for a miss-distance cut -- roughly
+\textbf{a third fewer expensive analyses at equal or better recall}.}
+
+\worked{More importantly, on the object split the \textbf{baseline fails
+full recall} (\SI{97.2}{\percent}, one high-risk conjunction missed) while
+logistic regression retains all of them. Miss distance alone is not
+sufficient: its rank correlation with $\log_{10}\Pc$ is only $+0.60$,
+because the projected covariance depends on encounter geometry that miss
+distance does not capture.}
+
+\failed{\textbf{Gradient boosting fails completely}, retaining
+\SI{100}{\percent} of the catalogue under every configuration. This is not a
+threshold artefact: its \emph{oracle} operating point is also
+$\approx$\SI{100}{\percent}, meaning the lowest-scoring true positive is
+ranked below almost the entire test set. The flexible model fragments a
+space in which the rare positives live in a thin tail, and cannot rank them;
+the linear model, whose score is monotone in roughly the right direction,
+can. At \SI{0.1}{\percent} positive rate, model capacity actively hurts.}
+
+\gotcha{An earlier version of this evaluation set thresholds from
+\emph{in-sample} training scores. Gradient boosting fits its training
+positives easily, so the implied threshold did not transfer and the
+operating point collapsed. Any threshold intended for deployment must be
+chosen out-of-fold. This also masked the baseline's recall failure.}
+
+\subsection{Limitations}
+
+\begin{enumerate}
+  \item Test sets contain only 36--99 positives. Differences of a few tenths
+        of a percent in ``kept'' should not be over-read.
+  \item The population is debris clouds, not a general catalogue. Debris is
+        small, uncontrolled, and co-orbital; operational payload
+        conjunctions differ.
+  \item Labels inherit every Phase 2 assumption -- the synthesized
+        covariance and a fixed \SI{2}{\meter} hard-body radius. They are
+        self-consistent, not ground truth.
+  \item Seven-day propagation from a single epoch exceeds the
+        \numrange{2}{5}~day range over which the covariance model was
+        calibrated.
+\end{enumerate}
