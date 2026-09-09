@@ -12,3 +12,4 @@ data/*
 # Compiled pybind11 extension (platform-specific, rebuild with setup.py)
 reference/lhd/build/
 *.so
+data/triage_dataset.csv

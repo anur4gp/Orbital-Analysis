@@ -154,3 +154,19 @@ def pc_small_disk(mu_2d: np.ndarray, cov_2d: np.ndarray, hbr_km: float) -> float
     norm = 1.0 / (2.0 * np.pi * np.sqrt(np.linalg.det(cov_2d)))
     quad = mu_2d @ inv @ mu_2d
     return float(norm * np.exp(-0.5 * quad) * np.pi * hbr_km * hbr_km)
+
+
+def log10_pc_small_disk(mu_2d: np.ndarray, cov_2d: np.ndarray, hbr_km: float) -> float:
+    """log10(Pc) computed directly, without ever forming Pc.
+
+    Screened conjunctions routinely miss by tens of sigma, where Pc underflows
+    to exactly zero in double precision -- a 40-sigma encounter is nominally
+    ~1e-350. Working in logs keeps those labels finite and ordered, which
+    matters because they are the negative class of the Phase 4 dataset.
+    Valid in the HBR << sigma regime, which every real conjunction satisfies.
+    """
+    inv = np.linalg.inv(cov_2d)
+    quad = float(mu_2d @ inv @ mu_2d)
+    log_norm = -np.log(2.0 * np.pi * np.sqrt(np.linalg.det(cov_2d)))
+    log_area = np.log(np.pi * hbr_km * hbr_km)
+    return float((log_norm - 0.5 * quad + log_area) / np.log(10.0))
