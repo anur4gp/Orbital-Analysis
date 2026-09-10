@@ -338,9 +338,49 @@ at equal recall):
 a constant "no" scores 99.9%. Splits must be grouped (by day or by object),
 never random, or the same pair leaks across the split.
 
-**Next:** Phase 5 (writeup). `writeup/project_log.tex` + `surrogate_results.tex`
-+ `phase4_results.tex` hold the material. Modules import as flat top-level
-names, so scripts add `src/` to `sys.path` rather than using a package.
+### Phase 5 status: figures and report written
+
+- `src/make_figures.py` — four figures, vector PDF for LaTeX + PNG.
+  Expensive pieces cached to `data/figure_data.json` (gitignored);
+  `--force` refreshes.
+- `writeup/figures/` — fig1 motivation, fig2 surrogate accuracy,
+  fig3 cost benchmark, fig4 triage operating curves
+- `writeup/report.tex` — the arXiv-style short report (self-contained;
+  `project_log.tex` remains the running log it draws from)
+
+**Headline number from fig3:** charging the surrogate its full training cost
+and MC its per-query cost at matched accuracy (~7% in Pc), break-even is 64
+conjunctions and the surrogate is **~5,300x cheaper** over the 337,789-pair
+catalog screen.
+
+**Figure palette:** slots 1-3 of the reference categorical theme
+(blue #2a78d6 / orange #eb6834 / aqua #1baf7a) — the documented
+all-pairs-safe subset. Marker shape and dash pattern carry identity
+alongside hue, so figures survive greyscale printing and color-vision
+deficiency. Aqua is below 3:1 on white, so the relief rule applies: the
+paper prints the same numbers as tables.
+
+**Figure bugs caught by actually looking at the renders:**
+1. fig1(a) first drew a design point with Pc ~ 2e-15, where *every* sample
+   budget returns zero hits — no convergence visible at all. The reference
+   encounter is now chosen to match the Pc of the real Phase 2 conjunction.
+2. fig1(b) budget labels sat on top of the histogram bars; now staggered
+   vertically above them.
+3. fig2 direct labels collided at n=256 where the three series converge.
+   Dropped in favor of legend + markers + dash patterns.
+
+**LaTeX state:** four .tex files, all structurally valid (braces,
+environments, refs, siunitx S-columns, citations). `report.tex` cites all 10
+bibliography entries. **Still not compile-verified** — no TeX toolchain on
+this machine. Overleaf compiled project_log.tex fine. To build locally:
+install TinyTeX or Tectonic + the LaTeX Workshop VS Code extension, then
+`tlmgr install siunitx booktabs multirow`.
+
+**Bibliographic details in report.tex were written from memory and must be
+checked before any submission.**
+
+All five phases are complete. Modules import as flat top-level names, so
+scripts add `src/` to `sys.path` rather than using a package.
 
 ### Phase 1 steps, in order (after setup above is done)
 
