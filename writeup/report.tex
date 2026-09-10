@@ -1,0 +1,511 @@
+% =====================================================================
+%  Surrogate-Accelerated Conjunction Assessment
+%  Short report / arXiv-style preprint
+%
+%      pdflatex report.tex
+%
+%  Figures live in figures/ and are produced by src/make_figures.py.
+%  The running project log (methods, failures, every measured number) is
+%  project_log.tex; this file is the report drawn from it.
+% =====================================================================
+\documentclass[11pt]{article}
+
+\usepackage[margin=1.1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage{multirow}
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+
+\newcommand{\Pc}{P_c}
+
+\title{\textbf{Surrogate-Accelerated Conjunction Assessment}\\[2pt]
+\large Space-filling designs and Gaussian-process emulation for
+collision probability at catalog scale}
+\author{Anurag Paudel\\
+\small Department of Applied Mathematics, University of California, Merced}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Screening the tracked-object catalog for collision risk requires evaluating
+collision probability $\Pc$ for every close approach, and the standard
+Monte Carlo estimator is prohibitively expensive for the rare-event
+probabilities involved. We show that it is worse than expensive: across the
+realistic parameter range, $\Pc$ spans roughly thirteen orders of magnitude,
+and at $10^{8}$ samples brute force returns \emph{zero hits} -- no estimate
+at all -- for about three quarters of encounters. We build a Gaussian-process
+surrogate over the encounter-parameter space, trained at points chosen by
+parallel-tempering space-filling designs. Two exact invariances of the
+collision integral reduce its natural six-parameter description to four, a
+reduction verified numerically to $\sim10^{-12}$ and worth an
+\numrange{8}{14}-fold saving in expensive evaluations. The surrogate attains
+\num{0.03} orders of magnitude RMSE in $\log_{10}\Pc$ from 64 training runs
+and answers subsequent queries in \SI{8}{\micro\second}, breaking even
+against Monte Carlo after 64 conjunctions and running
+$\sim$\num{5300} times cheaper over a \num{337789}-pair catalog screen. We
+report two negative results: space-filling designs cannot be substituted for
+Monte Carlo samples in the rare-event integral itself, and the
+$2$--$3\times$ advantage optimised designs hold on their own criterion does
+not translate into a proportional accuracy advantage.
+\end{abstract}
+
+% =====================================================================
+\section{Introduction}
+
+Two tracked objects pass close to one another. The probability that they
+collide is not a geometric question, because neither position is known
+precisely. Orbit uncertainty derived from two-line element sets is of order
+\SI{1}{\kilo\meter}, while the objects themselves are of order
+\SI{1}{\meter} and the reported miss distances are hundreds of metres. The
+uncertainty is three orders of magnitude larger than the objects and larger
+than the separation being resolved, so only a probability is meaningful.
+
+We measured this gap directly. Rebuilding 37 published conjunctions by
+propagating both objects from public element sets to the time of closest
+approach gave separations differing from the reported miss distance by
+\SIrange{0.6}{2.0}{\kilo\meter}, against reported values of
+\SIrange{0.08}{0.43}{\kilo\meter} (Section~\ref{sec:uncertainty}). Every
+rebuilt separation was \emph{larger} than reported, which is the expected
+consequence of adding isotropic error to a near-zero displacement: distance
+is a norm, so random perturbation almost always increases it.
+
+Catalog-scale screening compounds the problem. Megaconstellation growth is
+increasing the number of screened pairs faster than compute budgets grow,
+and the standard Monte Carlo estimator scales as $1/\sqrt{N}$, so a tenfold
+accuracy improvement costs a hundredfold in samples.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+  \item A measurement of \emph{where brute force fails outright} rather than
+        merely slowly (Section~\ref{sec:cost}, Figure~\ref{fig:motivation}).
+  \item An exact $6 \to 4$ reduction of the encounter-parameter space,
+        verified numerically rather than asserted
+        (Section~\ref{sec:reduction}).
+  \item A Gaussian-process surrogate trained at parallel-tempering
+        space-filling design points, benchmarked against random Latin
+        hypercubes and uniform sampling (Section~\ref{sec:surrogate}).
+  \item A triage classifier trained on a catalog screen of \num{337789}
+        conjunctions, evaluated at full recall against the baseline an
+        analyst would actually use (Section~\ref{sec:triage}).
+  \item Two negative results (Sections~\ref{sec:negative}
+        and~\ref{sec:surrogate}) that constrain how this family of methods
+        should be applied.
+\end{enumerate}
+
+% =====================================================================
+\section{Propagation and uncertainty}\label{sec:uncertainty}
+
+Element sets are retrieved from CelesTrak and Space-Track and propagated
+with SGP4. TLE elements are Brouwer mean elements defined by the SGP4 theory
+itself; propagating them with a general-purpose orbit integrator introduces
+kilometre-level error immediately, so the element set and the propagator are
+used strictly as a matched pair. Propagation was validated against the
+International Space Station: mean altitude \SI{419.4}{\kilo\meter} and
+period \SI{92.96}{\minute} from the elements, against
+\SI{92.91}{\minute} measured independently by counting minima of geocentric
+radius over three days of propagation.
+
+The public conjunction feed carries no covariance data. It reports time of
+closest approach, miss distance, object identifiers, radar cross-section
+class and the originator's own probability, but no state vectors and no
+covariance matrices. Uncertainty must therefore be modelled, and we state it
+as an assumption rather than presenting it as a data product.
+
+Each object is assigned a diagonal covariance in its own radial /
+in-track / cross-track (RTN) frame,
+\begin{equation}
+  C_{\text{RTN}} = \operatorname{diag}\!\left(\sigma_R^2,\;
+    (k_T\sigma_R)^2,\; (k_N\sigma_R)^2\right),
+  \label{eq:cov}
+\end{equation}
+with anisotropy ratios fixed at $k_T = 10$, $k_N = 1.5$ and only the scale
+$\sigma_R$ fitted. In-track error dominates because a small period error
+integrates into a growing along-track lag. Fixing the ratios is deliberate:
+a full $3\times3$ covariance per object has twelve free parameters, and the
+data provides one scalar observable per event. Fitting the scale alone to
+the rebuilt-versus-reported miss spread gives
+\begin{equation*}
+  \sigma_R = \SI{95}{\meter}, \qquad
+  \sigma_T = \SI{953}{\meter}, \qquad
+  \sigma_N = \SI{143}{\meter},
+\end{equation*}
+magnitudes consistent with published TLE accuracy and obtained from our own
+measurements rather than assumed. The two objects occupy different orbital
+planes, so each covariance is rotated into a common inertial frame before
+the relative covariance $C = C_1 + C_2$ is formed.
+
+\paragraph{What this model does not do.} Per-event correlation between
+predicted and observed error is $-0.53$. The model reproduces the aggregate
+\emph{scale} of TLE uncertainty but not the per-event ranking; it does not
+identify which conjunctions are worst. A single scalar observable per event
+is insufficient to constrain that, and we do not claim otherwise.
+
+% =====================================================================
+\section{Collision probability and the cost of brute force}\label{sec:cost}
+
+At the relative speeds typical of low Earth orbit
+(\SIrange{10}{15}{\kilo\meter\per\second}) an encounter lasts
+milliseconds and relative motion is effectively rectilinear. The
+three-dimensional problem then collapses onto the two-dimensional encounter
+plane perpendicular to the relative velocity, and
+\begin{equation}
+  \Pc = \int_{\|x\| \le R} \mathcal{N}\!\left(x;\, \mu,\, C\right)
+        \,\mathrm{d}x ,
+  \label{eq:pc}
+\end{equation}
+where $\mu$ and $C$ are the projected relative miss vector and covariance
+and $R$ is the combined hard-body radius.
+
+We implement three independent estimators of \eqref{eq:pc}: a batched Monte
+Carlo sampler, polar quadrature with resolution adapted to the covariance,
+and a small-disk closed form valid when $R \ll \sigma$. Monte Carlo and
+quadrature agree within Monte Carlo error bars on every real conjunction
+tested (maximum $|z| = 1.4$), which cross-validates the encounter geometry
+and the sampler against each other.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/fig1_motivation.pdf}
+\caption{Brute force does not merely converge slowly; over most of the
+parameter range it returns nothing. \textbf{(a)} Monte Carlo convergence at
+a representative $\Pc \approx 4.5\times10^{-6}$: below $10^{5}$ samples the
+estimator produces zero hits, and \num{22000000} samples are needed for
+\SI{10}{\percent} relative error. \textbf{(b)} Distribution of $\Pc$ over
+the encounter-parameter box, with the reach of two sample budgets marked at
+ten expected hits. Roughly three quarters of encounters lie beyond reach
+even at $10^{8}$ samples.}
+\label{fig:motivation}
+\end{figure}
+
+Figure~\ref{fig:motivation} states the problem quantitatively. At
+$\Pc \approx 4.5\times10^{-6}$, \num{100000} samples return \emph{zero
+hits}: not a poor estimate but no estimate. Reaching \SI{10}{\percent}
+relative error requires $\sim$\num{22000000} samples and \SI{1}{\percent}
+requires $\sim2.2\times10^{9}$, per conjunction. Across the parameter box
+$\Pc$ spans about thirteen orders of magnitude, and a substantial fraction
+of encounters sit below $10^{-12}$, where no achievable sample budget yields
+a single hit.
+
+This has a direct methodological consequence: \textbf{training labels for
+the surrogate cannot come from Monte Carlo}, because Monte Carlo cannot
+label most of the space. We use the quadrature, which is exact in this
+Gaussian setting and agrees with Monte Carlo wherever Monte Carlo works at
+all. The sampler stands in for the general case -- non-Gaussian uncertainty,
+long-duration encounters, non-spherical bodies -- where no closed form
+exists.
+
+% =====================================================================
+\section{A negative result: designs cannot replace samples}\label{sec:negative}
+
+The intuitive reading of ``use a space-filling design instead of Monte
+Carlo'' is to replace the random samples in \eqref{eq:pc} with a
+well-spread deterministic design. This does not work, and the reason is
+worth stating because the idea is natural.
+
+Equation~\eqref{eq:pc} is the integral of an indicator function over a
+microscopic region. A 256-point space-filling design returns zero hits just
+as $10^{5}$ random samples do, and in fact more reliably, because such a
+design deliberately spreads points \emph{away} from any small region.
+Quasi-Monte Carlo does not rescue the construction either: its convergence
+advantage requires a smooth integrand, and an indicator over a tiny region
+is the opposite of smooth.
+
+The construction that does work places the design in the
+\textbf{encounter-parameter space} rather than the sample space. Each design
+point receives one expensive evaluation, a surrogate interpolates between
+them, and the cost is amortised across every subsequent query.
+
+% =====================================================================
+\section{Dimensional reduction}\label{sec:reduction}
+
+The integral \eqref{eq:pc} appears to depend on six parameters: $\mu$ (two
+components), $C$ (three), and $R$ (one). Only four are independent. The
+integration domain $\|x\| \le R$ is rotation-symmetric, so rotating $\mu$
+and $C$ together leaves $\Pc$ unchanged; and the integral is covariant under
+uniform scaling of all lengths, so dividing $\mu$, $\sqrt{C}$ and $R$ by a
+common factor leaves it unchanged. Rotating into the eigenbasis of $C$ and
+scaling by $R$ therefore removes two parameters, leaving
+$(\mu_1/R,\, \mu_2/R,\, \sigma_1/R,\, \sigma_2/R)$.
+
+Because a silently incorrect reduction would invalidate everything
+downstream, the invariances were verified numerically rather than accepted
+from the algebra (Table~\ref{tab:invariance}).
+
+\begin{table}[htbp]
+\centering
+\caption{Numerical verification of the reduction over random encounters
+         spanning the full parameter box. Residuals are at the level of
+         quadrature noise: these are exact identities, not approximations.}
+\label{tab:invariance}
+\begin{tabular}{lrS[table-format=1.1e-2]}
+\toprule
+Claim & {Cases} & {Max.\ relative error} \\
+\midrule
+$\Pc$ invariant under rotation of $\mu$ and $C$ & 300 & 8.3e-13 \\
+$\Pc$ invariant under uniform length scaling    & 300 & 9.8e-13 \\
+Reduced form reproduces $\Pc$                   & 200 & 8.4e-13 \\
+$\Pc$ even in each $\mu$ component (eigenbasis) & 200 & 6.2e-16 \\
+$6 \to 4 \to \Pc$ round trip                    & 200 & 5.5e-13 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The saving is substantial. Measured fill distance at $k=4$, $n=64$ is
+\num{0.397}; matching it in six dimensions requires
+$\sim$\numrange{500}{900} points, an \numrange{8}{14}-fold increase in
+expensive evaluations for identical answers. The sign symmetry, exact to
+$6\times10^{-16}$, permits restricting the domain to
+$\mu_1, \mu_2 \ge 0$, reducing its volume by a further factor of four.
+
+The identity holds \emph{given the model}: a circular hard body, Gaussian
+uncertainty, and the short-term encounter approximation. Slow encounters,
+below about \SI{1}{\kilo\meter\per\second} relative speed, fall outside it
+and are excluded here.
+
+% =====================================================================
+\section{Surrogate}\label{sec:surrogate}
+
+Design points are generated by parallel-tempering optimisation of the MaxPro
+criterion, reusing a C\texttt{++} implementation developed for unrelated
+prior work and wrapped for Python. Designs are static artefacts: the
+optimiser runs once per $(n, k)$ and costs \SIrange{0.2}{1.4}{\second}. On
+its own criterion the optimised design beats the best of twenty random Latin
+hypercubes by $2.1$--$3.1\times$.
+
+The surrogate is a Gaussian process with an anisotropic squared-exponential
+kernel, hyperparameters obtained by maximising the log marginal likelihood.
+Targets are $\log_{10}\Pc$: with thirteen orders of magnitude of dynamic
+range, a GP fitted to $\Pc$ itself would be dominated entirely by the few
+largest values.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig2_surrogate.pdf}
+  \caption{Surrogate accuracy against training budget, five replicates per
+  design type; error bars are the standard deviation across replicates. All
+  three converge by $n=256$.}
+  \label{fig:surrogate}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{figures/fig3_cost.pdf}
+  \caption{Total compute to evaluate $Q$ conjunctions at matched accuracy
+  ($\approx$\SI{7}{\percent} in $\Pc$). The surrogate's cost is flat after
+  training; break-even is 64 conjunctions.}
+  \label{fig:cost}
+\end{minipage}
+\end{figure}
+
+At $n=64$ the surrogate attains an RMSE of about \num{0.03} orders of
+magnitude in $\log_{10}\Pc$ -- roughly \SI{7}{\percent} in $\Pc$ -- and
+answers subsequent queries in \SI{8.3}{\micro\second}.
+Figure~\ref{fig:cost} converts this into the quantity that matters at
+catalog scale. Charging the surrogate its full training cost and Monte Carlo
+its per-query cost at matched accuracy, the two break even at 64
+conjunctions; over the \num{337789}-pair screen of
+Section~\ref{sec:triage} the surrogate is $\sim$\num{5300} times cheaper.
+
+\paragraph{A second negative result.} The $2$--$3\times$ advantage the
+optimised designs hold on the MaxPro criterion \emph{does not} translate
+into a proportional accuracy advantage. Mean RMSE improves by only
+$1.1$--$1.8\times$ over random Latin hypercubes and uniform sampling at
+$n \le 128$, and by $n=256$ the three are indistinguishable
+(Figure~\ref{fig:surrogate}). The target function is smooth, so once the box
+is adequately covered the design ceases to matter. Better space-filling by
+the criterion is not the same thing as better surrogate accuracy.
+
+Where the optimised designs do show a consistent advantage is
+\textbf{variance}. Across replicates their RMSE spread is several times
+tighter than that of random designs. With a one-shot expensive evaluation
+budget a random design is a lottery -- some draws are as good as an
+optimised one, others substantially worse -- and reproducibility is worth as
+much to a practitioner as the mean improvement.
+
+% =====================================================================
+\section{Risk triage}\label{sec:triage}
+
+The public conjunction feed contains no negative examples: every record is
+flagged reportable with $\Pc > 10^{-4}$. A classifier trained on it learns
+to answer ``yes''. We therefore manufactured negatives by screening debris
+catalogs directly -- dense, co-orbital populations that generate many close
+approaches per object.
+
+Screening uses a coarse propagation grid, per-pair local minima of
+separation detected on a rolling three-step window, an analytic
+linear-motion filter, and parabolic refinement of the survivors. The coarse
+gate must be wide: at \SI{16}{\kilo\meter\per\second} a \SI{60}{\second}
+grid steps \SI{960}{\kilo\meter}, so a pair passing within
+\SI{1}{\kilo\meter} may never appear closer than $\sim$\SI{450}{\kilo\meter}
+at any sampled instant. The gate is consequently set to
+\SI{530}{\kilo\meter}, which leaves nearly every pair a candidate; the
+analytic filter, which locates the rectilinear closest approach in closed
+form, then removes \SI{91}{\percent} of candidates with identical output.
+
+The resulting dataset holds \num{337789} conjunctions from three debris
+families over seven days, with 352 positives (\SI{0.104}{\percent}) at
+$\log_{10}\Pc > -10$. No conjunction in this population reached the
+operational $10^{-4}$ threshold, so the label threshold is a stated choice;
+the ordering of methods is unchanged at $10^{-8}$ and $10^{-12}$.
+
+Features are restricted to quantities available \emph{before} any $\Pc$
+computation -- miss distance, relative speed, altitude, relative
+inclination, element-set age, period difference, eccentricity and drag term.
+Including $\Pc$ or anything derived from it would make the task circular.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.62\textwidth]{figures/fig4_triage.pdf}
+\caption{Triage operating curves on held-out data. Below
+\SI{70}{\percent} recall a miss-distance cut is the better ranker; the
+learned model wins at the high-recall end, which is the operationally
+relevant one. Gradient boosting reaches full recall only by retaining the
+entire catalog.}
+\label{fig:triage}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Triage performance. ``Kept'' is the fraction of conjunctions passed
+         on for expensive analysis; lower is better at equal recall.
+         Thresholds are set from out-of-fold predictions on training data
+         and applied unchanged.}
+\label{tab:triage}
+\begin{tabular}{llrrr}
+\toprule
+Split & Model & Kept & Recall & Missed \\
+\midrule
+\multirow{3}{*}{Day}
+ & Miss-distance cut (baseline) & \SI{1.41}{\percent} & \SI{100.0}{\percent} & 0 \\
+ & Logistic regression          & \SI{0.92}{\percent} & \SI{100.0}{\percent} & 0 \\
+ & Gradient boosting            & \SI{100.0}{\percent} & \SI{100.0}{\percent} & 0 \\
+\midrule
+\multirow{3}{*}{Object}
+ & Miss-distance cut (baseline) & \SI{1.15}{\percent} & \SI{97.2}{\percent}  & 1 \\
+ & Logistic regression          & \SI{0.82}{\percent} & \SI{100.0}{\percent} & 0 \\
+ & Gradient boosting            & \SI{100.0}{\percent} & \SI{100.0}{\percent} & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Accuracy and AUC are near-meaningless at a \SI{0.1}{\percent} positive rate;
+a constant negative prediction scores \SI{99.9}{\percent}. Because missing a
+high-risk conjunction is unacceptable while passing a harmless one costs
+only compute, models are compared by how much of the catalog they discard
+\emph{at full recall}. The baseline is a miss-distance cut, which is what an
+analyst does without a model, and splits are grouped by day or by object
+rather than at random, since conjunctions in the same window share objects
+and geometry.
+
+Logistic regression passes \SIrange{0.82}{0.92}{\percent} of conjunctions
+against \SIrange{1.15}{1.41}{\percent} for the baseline, and on the object
+split it retains full recall where the baseline misses one. Miss distance
+alone has a rank correlation of only $+0.60$ with $\log_{10}\Pc$: the
+projected covariance depends on encounter geometry that a single distance
+does not capture.
+
+Gradient boosting fails outright, retaining the entire catalog under every
+configuration. This is not a threshold artefact -- its oracle operating
+point is also $\approx$\SI{100}{\percent}, meaning the lowest-scoring true
+positive ranks below almost the whole test set. At a \SI{0.1}{\percent}
+positive rate the flexible model fragments a space in which the positives
+occupy a thin tail and cannot rank them, while a model whose score is
+monotone in roughly the right direction can. Model capacity actively hurts.
+
+% =====================================================================
+\section{Limitations}
+
+\begin{enumerate}
+  \item \textbf{Absolute probabilities are not validated.} Our $\Pc$ values
+        run $10$--$100\times$ below the originator's published figures. The
+        dominant suspect is the hard-body radius, since
+        $\Pc \propto R^2$ and radar-cross-section-derived radii of
+        \SIrange{1}{4}{\meter} are likely below operational values.
+        Agreement with published probabilities is not claimed as validation.
+  \item \textbf{Uncertainty is synthesized, not measured}, and reproduces
+        the aggregate scale of TLE error rather than its per-event
+        variation.
+  \item \textbf{The triage population is debris}, which is small,
+        uncontrolled and co-orbital; operational payload conjunctions
+        differ. Test sets contain 36--99 positives, so differences of a few
+        tenths of a percent should not be over-read.
+  \item \textbf{Seven-day propagation from a single epoch} exceeds the
+        \numrange{2}{5}-day range over which the covariance model was
+        calibrated.
+  \item \textbf{The dimensional reduction is model-conditional} and does not
+        extend to non-Gaussian uncertainty, non-circular bodies, or
+        long-duration encounters.
+\end{enumerate}
+
+% =====================================================================
+\section{Reproducibility}
+
+All results are produced by scripts in the accompanying repository. Every
+important quantity is computed two independent ways: Monte Carlo against
+quadrature, the C\texttt{++} design criterion against a \texttt{numpy}
+reimplementation (agreeing to six decimal places), and the orbital period
+from elements against a period measured by counting radius minima. The test
+suite comprises 86 offline checks.
+
+\begin{table}[htbp]
+\centering
+\caption{Commands reproducing each result.}
+\label{tab:repro}
+\begin{tabular}{ll}
+\toprule
+Command & Produces \\
+\midrule
+\texttt{python src/validate\_iss.py}    & Propagation validation (Sec.~\ref{sec:uncertainty}) \\
+\texttt{python src/calibrate.py}        & Covariance calibration (Sec.~\ref{sec:uncertainty}) \\
+\texttt{python src/run\_montecarlo.py}  & Cost baseline (Sec.~\ref{sec:cost}) \\
+\texttt{python tests/test\_paramspace.py} & Table~\ref{tab:invariance} \\
+\texttt{python src/run\_surrogate.py}   & Figure~\ref{fig:surrogate} \\
+\texttt{python src/build\_dataset.py}   & Triage dataset (Sec.~\ref{sec:triage}) \\
+\texttt{python src/run\_triage.py}      & Table~\ref{tab:triage} \\
+\texttt{python src/make\_figures.py}    & All figures \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =====================================================================
+\begin{thebibliography}{9}
+\small
+\bibitem{hoots} F.~R. Hoots and R.~L. Roehrich,
+  \emph{Models for Propagation of NORAD Element Sets}, Spacetrack Report
+  No.~3, U.S. Air Force Aerospace Defense Command, 1980.
+\bibitem{vallado} D.~A. Vallado,
+  \emph{Fundamentals of Astrodynamics and Applications}, 4th ed.,
+  Microcosm Press, 2013.
+\bibitem{foster} J.~L. Foster and H.~S. Estes,
+  \emph{A Parametric Analysis of Orbital Debris Collision Probability and
+  Maneuver Rate for Space Vehicles}, NASA JSC-25898, 1992.
+\bibitem{chan} K.~Chan, \emph{Spacecraft Collision Probability},
+  Aerospace Press, 2008.
+\bibitem{alfano} S.~Alfano, ``A Numerical Implementation of Spherical Object
+  Collision Probability,'' \emph{Journal of the Astronautical Sciences},
+  vol.~53, no.~1, 2005.
+\bibitem{mckay} M.~D. McKay, R.~J. Beckman and W.~J. Conover, ``A Comparison
+  of Three Methods for Selecting Values of Input Variables in the Analysis
+  of Output from a Computer Code,'' \emph{Technometrics}, vol.~21, no.~2,
+  1979.
+\bibitem{morris} M.~D. Morris and T.~J. Mitchell, ``Exploratory Designs for
+  Computational Experiments,'' \emph{Journal of Statistical Planning and
+  Inference}, vol.~43, 1995.
+\bibitem{joseph} V.~R. Joseph, E.~Gul and S.~Ba, ``Maximum Projection
+  Designs for Computer Experiments,'' \emph{Biometrika}, vol.~102, no.~2,
+  2015.
+\bibitem{geyer} C.~J. Geyer, ``Markov Chain Monte Carlo Maximum
+  Likelihood,'' in \emph{Computing Science and Statistics: Proceedings of
+  the 23rd Symposium on the Interface}, 1991.
+\bibitem{rw} C.~E. Rasmussen and C.~K.~I. Williams,
+  \emph{Gaussian Processes for Machine Learning}, MIT Press, 2006.
+\end{thebibliography}
+
+\end{document}
