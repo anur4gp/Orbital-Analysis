@@ -382,6 +382,42 @@ checked before any submission.**
 All five phases are complete. Modules import as flat top-level names, so
 scripts add `src/` to `sys.path` rather than using a package.
 
+## Extension roadmap (flight dynamics + estimation), started 2026-09-16
+
+Four new phases, each stopped for review: 1 = 6-DOF dynamics, 2 = EKF/UKF
+orbit determination, 3 = LHS Monte Carlo campaign runner + Docker,
+4 = engineering quality. Phase 0 (package layout, Python 3.12 in
+`.venv312/`, pytest, CI, behaviour lock) is done. Docker Desktop is
+installed and verified (`hello-world` runs); it must be open before use.
+Phase 3's LHS should reuse the MaxPro tempering code, not scipy.stats.qmc.
+
+### New Phase 1 status: 6-DOF dynamics built
+
+- `orbital/core/constants.py`: EGM96 constants, kept separate from SGP4's WGS-72
+- `orbital/attitude/`: quaternion (Hamilton, scalar first, BODY->ECI), DCM
+  (Shepherd extraction), Euler 3-2-1 and 3-1-3 with gimbal-lock convention
+- `orbital/dynamics/`: state (13-vector, frame-tagged; propagate refuses
+  TEME), validated inertia (triangle inequality), two-body + J2 forces,
+  gravity-gradient torque, conservation diagnostics
+- `orbital/integrators/`: `Integrator` protocol, RK4 and DOP853, with
+  `Constraint` projection for the quaternion norm (DOP853 uses a terminal
+  event + restart, since solve_ivp has no between-step hook)
+- `scripts/validate_6dof.py` -> `writeup/figures/fig5_6dof_validation`
+- tests: `test_attitude.py`, `test_integrators.py`, `test_dynamics.py`
+  (163 total pass; ruff, mypy clean; behaviour lock still IDENTICAL)
+
+Measured: DOP853 torque-free energy drift 2e-13, closed-form precession
+error 2e-11 rad; RK4 h=0.5 s quaternion norm drifts to 3e-7 without
+projection and holds at 2e-16 with it; J2 node rate within 0.42% of the
+analytic value (the gap is osculating vs mean elements); gravity-gradient
+libration within 0.1% of the analytic curve.
+
+J2 assumption: the ECI z-axis is treated as Earth's spin axis, which neglects
+precession and nutation (~0.3 deg since J2000).
+
+Not built yet: TEME<->J2000 conversion (`core/frames.py`, `timescales.py`).
+Phase 2 needs this for ground stations (ECEF) anyway.
+
 ### Phase 1 steps, in order (after setup above is done)
 
 1. Understand the TLE format (epoch, catalog number, six orbital elements)
