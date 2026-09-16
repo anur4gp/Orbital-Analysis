@@ -6,7 +6,7 @@ by delimiter, so parsing is slicing. See CLAUDE.md for the column tables.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 def checksum(line: str) -> int:
@@ -43,7 +43,7 @@ def _decimal_point_assumed(field: str) -> float:
 def _epoch_to_datetime(two_digit_year: int, day_of_year: float) -> datetime:
     """TLE epoch -> UTC datetime. Years 57-99 are 19xx, 00-56 are 20xx."""
     year = 1900 + two_digit_year if two_digit_year >= 57 else 2000 + two_digit_year
-    start = datetime(year, 1, 1, tzinfo=timezone.utc)
+    start = datetime(year, 1, 1, tzinfo=UTC)
     return start + timedelta(days=day_of_year - 1.0)
 
 
@@ -85,7 +85,7 @@ class TLE:
         SGP4 error grows roughly 1-3 km/day past epoch, so this is the first
         thing to check before trusting a propagated state.
         """
-        at = at or datetime.now(timezone.utc)
+        at = at or datetime.now(UTC)
         return (at - self.epoch).total_seconds() / 86400.0
 
 

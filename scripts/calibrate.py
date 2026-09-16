@@ -7,20 +7,26 @@ covariance. sigma_R is chosen so the model reproduces the observed spread.
 
 The anisotropy ratios k_T and k_N stay FIXED -- only the scale is fit.
 
-Run: ./venv/bin/python src/calibrate.py
+Run: python scripts/calibrate.py
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from conjunctions import build_geometry, deduplicate, fetch_tles_for, load_events, tractable
-from covariance import DEFAULT_K_N, DEFAULT_K_T, RTNCovariance, combined_covariance
-from spacetrack import SpaceTrack
+from orbital.conjunction.covariance import (
+    DEFAULT_K_N,
+    DEFAULT_K_T,
+    RTNCovariance,
+    combined_covariance,
+)
+from orbital.conjunction.events import (
+    build_geometry,
+    deduplicate,
+    fetch_tles_for,
+    load_events,
+    tractable,
+)
+from orbital.sgp4tools.spacetrack import SpaceTrack
 
 N_EVENTS = 40
 N_DRAWS = 20_000
@@ -54,7 +60,7 @@ def simulate_errors(geoms, sigma_r_km, unit_normals):
     once and rescaled -- no resampling per candidate value.
     """
     predicted = []
-    for g, z in zip(geoms, unit_normals):
+    for g, z in zip(geoms, unit_normals, strict=False):
         unit_cov = combined_covariance(
             g.r1, g.v1, g.r2, g.v2,
             RTNCovariance(1.0, DEFAULT_K_T, DEFAULT_K_N),

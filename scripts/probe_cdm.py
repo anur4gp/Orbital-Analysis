@@ -5,16 +5,11 @@ covariance matrices. If it does, the Monte Carlo baseline samples real
 operational uncertainty; if not, covariances have to be synthesized and that
 becomes a stated assumption in the writeup.
 
-Run: ./venv/bin/python src/probe_cdm.py
+Run: python scripts/probe_cdm.py
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from spacetrack import SpaceTrack
+from orbital.sgp4tools.spacetrack import SpaceTrack
 
 # CDM covariance is reported in the RTN/RSW frame: 21 lower-triangular terms
 # per object, named like CR_R, CT_R, CT_T, ... for objects 1 and 2.

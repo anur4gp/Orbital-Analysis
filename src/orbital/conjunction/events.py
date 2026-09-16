@@ -6,18 +6,19 @@ rebuilt by propagating both objects' TLEs to TCA with SGP4.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 
-from propagation import propagate, satrec_from_tle
-from spacetrack import SpaceTrack
-from tle import parse_tle
+from orbital.sgp4tools.propagation import propagate, satrec_from_tle
+from orbital.sgp4tools.spacetrack import SpaceTrack
+from orbital.sgp4tools.tle import TLE, parse_tle
 
 
 def _parse_tca(value: str) -> datetime:
-    return datetime.fromisoformat(value.replace("Z", "")).replace(tzinfo=timezone.utc)
+    return datetime.fromisoformat(value.replace("Z", "")).replace(tzinfo=UTC)
 
 
 def _to_float(value) -> float | None:
@@ -95,7 +96,7 @@ def tractable(events: list[Event]) -> list[Event]:
     ]
 
 
-def fetch_tles_for(st: SpaceTrack, norad_ids, **kwargs) -> dict[int, "object"]:
+def fetch_tles_for(st: SpaceTrack, norad_ids: Iterable[int], **kwargs) -> dict[int, TLE]:
     """Fetch latest TLEs for many objects in ONE request.
 
     Space-Track throttles gp queries hard, so ids are sent as a comma-
@@ -108,7 +109,7 @@ def fetch_tles_for(st: SpaceTrack, norad_ids, **kwargs) -> dict[int, "object"]:
         orderby="NORAD_CAT_ID",
         **kwargs,
     )
-    out = {}
+    out: dict[int, TLE] = {}
     for row in rows:
         line1, line2 = row.get("TLE_LINE1"), row.get("TLE_LINE2")
         if not line1 or not line2:

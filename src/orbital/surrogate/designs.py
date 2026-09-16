@@ -14,8 +14,9 @@ from pathlib import Path
 
 import numpy as np
 
-ROOT = Path(__file__).resolve().parent.parent
-LHD_DIR = ROOT / "reference" / "lhd"
+from orbital.paths import REFERENCE_DIR
+
+LHD_DIR = REFERENCE_DIR / "lhd"
 DESIGN_DIR = LHD_DIR / "designs"
 
 # The compiled extension lives next to its source, not on the default path.

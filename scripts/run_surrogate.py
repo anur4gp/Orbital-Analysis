@@ -8,22 +8,18 @@ quadrature is exact here (it agrees with MC to within MC error bars wherever
 MC works at all, max |z| = 1.4 in Phase 2), so it serves as ground truth,
 and the MC stands in for the general case where no closed form exists.
 
-Run: ./venv/bin/python src/run_surrogate.py
+Run: python scripts/run_surrogate.py
 """
 from __future__ import annotations
 
-import sys
 import time
-from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from designs import design_path, generate_maxpro, random_lhd, uniform_sample
-from montecarlo import pc_analytic
-from paramspace import DIM_4D, from_unit_cube_4d, unpack_4d
-from surrogate import fit_gp
+from orbital.conjunction.probability import pc_analytic
+from orbital.surrogate.designs import generate_maxpro, random_lhd, uniform_sample
+from orbital.surrogate.gp import fit_gp
+from orbital.surrogate.paramspace import DIM_4D, from_unit_cube_4d, unpack_4d
 
 N_TEST = 3000
 SIZES = (32, 64, 128, 256)
@@ -101,10 +97,10 @@ def main() -> int:
         print(f"  {name:>12} reaches it at {msg}")
 
     print("\ncost comparison, per Pc query:")
-    print(f"  brute-force MC, 10% rel err at Pc~4e-6 : ~22,000,000 draws")
+    print("  brute-force MC, 10% rel err at Pc~4e-6 : ~22,000,000 draws")
     print(f"  surrogate                              : one GP predict, "
           f"{_predict_cost(gp, u_test)*1e6:.1f} us/point")
-    print(f"  training cost, paid once               : 64 quadrature labels")
+    print("  training cost, paid once               : 64 quadrature labels")
     return 0
 
 

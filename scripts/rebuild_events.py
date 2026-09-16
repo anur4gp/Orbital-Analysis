@@ -4,19 +4,14 @@ Propagates both objects of each cdm_public event to TCA with SGP4 and
 compares the resulting miss distance against the reported MIN_RNG. The size
 of that disagreement is what sets the uncertainty model for the Monte Carlo.
 
-Run: ./venv/bin/python src/rebuild_events.py
+Run: python scripts/rebuild_events.py
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from conjunctions import build_geometry, fetch_tles_for, load_events, tractable
-from spacetrack import SpaceTrack
+from orbital.conjunction.events import build_geometry, fetch_tles_for, load_events, tractable
+from orbital.sgp4tools.spacetrack import SpaceTrack
 
 N_EVENTS = 12
 

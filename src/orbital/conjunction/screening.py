@@ -35,8 +35,8 @@ from datetime import datetime, timedelta
 import numpy as np
 from sgp4.api import SatrecArray
 
-from propagation import _to_jd, satrec_from_tle
-from tle import TLE
+from orbital.sgp4tools.propagation import _to_jd, satrec_from_tle
+from orbital.sgp4tools.tle import TLE
 
 # Widest plausible closing speed in LEO (head-on, ~7.7 km/s each).
 MAX_VREL_KM_S = 16.0

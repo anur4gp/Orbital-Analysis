@@ -1,84 +1,134 @@
-"""Offline unit tests for TLE parsing. No network.
+"""TLE parsing: column positions, implied decimals, and epoch handling.
 
-Run: ./venv/bin/python tests/test_tle.py
+Assertions are against the format specification rather than golden output,
+so a regression points at the rule that broke.
 """
-import sys
-from datetime import timezone
-from pathlib import Path
+from __future__ import annotations
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+from datetime import UTC
 
-from tle import _decimal_point_assumed, check_line, checksum, parse_tle, parse_tle_file
+import pytest
 
-# An ISS TLE frozen so these tests never depend on a live pull. Field values are
-# representative of a real April 2024 element set; the two check digits were
-# recomputed, so treat this as a fixture rather than a verbatim archived record.
-NAME = "ISS (ZARYA)"
-L1 = "1 25544U 98067A   24117.51782528  .00016717  00000-0  30074-3 0  9992"
-L2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.49309239448471"
-
-failures = []
+from orbital.sgp4tools.tle import (
+    _decimal_point_assumed,
+    check_line,
+    checksum,
+    parse_tle,
+    parse_tle_file,
+)
 
 
-def check(label, condition):
-    print(("PASS  " if condition else "FAIL  ") + label)
-    if not condition:
-        failures.append(label)
+class TestChecksum:
+    def test_fixture_lines_validate(self, iss_lines):
+        _, l1, l2 = iss_lines
+        assert check_line(l1)
+        assert check_line(l2)
+
+    def test_corrupted_line_rejected(self, iss_lines):
+        _, l1, _ = iss_lines
+        assert not check_line(l1[:20] + "9" + l1[21:])
+
+    def test_checksum_is_a_single_digit(self, iss_lines):
+        _, l1, _ = iss_lines
+        assert 0 <= checksum(l1) <= 9
+
+    def test_wrong_length_rejected(self, iss_lines):
+        _, l1, _ = iss_lines
+        assert not check_line(l1[:-1])
 
 
-def close(a, b, tol=1e-9):
-    return abs(a - b) <= tol
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [("30074-3", 0.30074e-3), ("00000-0", 0.0), ("-11606-4", -0.11606e-4)],
+)
+def test_assumed_decimal_exponential(field, expected):
+    """TLEs omit both the leading decimal point and the exponent marker."""
+    assert _decimal_point_assumed(field) == pytest.approx(expected)
 
 
-check("line 1 checksum valid", check_line(L1))
-check("line 2 checksum valid", check_line(L2))
-check("corrupted line rejected", not check_line(L1[:20] + "9" + L1[21:]))
-check("checksum is a digit 0-9", 0 <= checksum(L1) <= 9)
+class TestParsedFields:
+    def test_identity(self, iss_tle):
+        assert iss_tle.name == "ISS (ZARYA)"
+        assert iss_tle.catalog_number == 25544
+        assert iss_tle.classification == "U"
+        assert iss_tle.international_designator == "98067A"
 
-check("assumed-decimal exponential", close(_decimal_point_assumed("30074-3"), 0.30074e-3))
-check("assumed-decimal zero field", close(_decimal_point_assumed("00000-0"), 0.0))
-check("assumed-decimal negative", close(_decimal_point_assumed("-11606-4"), -0.11606e-4))
+    def test_line1_drag_terms(self, iss_tle):
+        assert iss_tle.bstar == pytest.approx(0.30074e-3)
+        assert iss_tle.mean_motion_dot == pytest.approx(0.00016717)
+        assert iss_tle.element_set_number == 999
 
-t = parse_tle(L1, L2, NAME)
-check("name", t.name == NAME)
-check("catalog number", t.catalog_number == 25544)
-check("classification", t.classification == "U")
-check("international designator", t.international_designator == "98067A")
-check("bstar", close(t.bstar, 0.30074e-3))
-check("mean motion dot", close(t.mean_motion_dot, 0.00016717))
-check("element set number", t.element_set_number == 999)
+    @pytest.mark.parametrize(
+        ("attr", "expected"),
+        [
+            ("inclination", 51.6416),
+            ("raan", 247.4627),
+            ("eccentricity", 0.0006703),
+            ("arg_perigee", 130.5360),
+            ("mean_anomaly", 325.0288),
+            ("mean_motion", 15.49309239),
+        ],
+    )
+    def test_orbital_elements(self, iss_tle, attr, expected):
+        assert getattr(iss_tle, attr) == pytest.approx(expected)
 
-# Epoch 24117.51782528 -> 2024 day 117 = April 26, at 0.51782528 of a day.
-check("epoch year", t.epoch.year == 2024)
-check("epoch month/day", (t.epoch.month, t.epoch.day) == (4, 26))
-check("epoch is UTC-aware", t.epoch.tzinfo == timezone.utc)
-check("epoch fraction -> 12:25", (t.epoch.hour, t.epoch.minute) == (12, 25))
+    def test_revolution_number(self, iss_tle):
+        assert iss_tle.revolution_number == 44847
 
-check("inclination", close(t.inclination, 51.6416))
-check("raan", close(t.raan, 247.4627))
-check("eccentricity implied decimal", close(t.eccentricity, 0.0006703))
-check("arg perigee", close(t.arg_perigee, 130.5360))
-check("mean anomaly", close(t.mean_anomaly, 325.0288))
-check("mean motion", close(t.mean_motion, 15.49309239))
-check("revolution number", t.revolution_number == 44847)
-check("period ~92.9 min", close(t.period_minutes, 1440.0 / 15.49309239, 1e-6))
+    def test_period_is_consistent_with_mean_motion(self, iss_tle):
+        """Period and mean motion are the same quantity in different units."""
+        assert iss_tle.period_minutes == pytest.approx(1440.0 / iss_tle.mean_motion)
 
-check("parse with name line", len(parse_tle_file(f"{NAME}\n{L1}\n{L2}\n")) == 1)
-check("parse without name line", len(parse_tle_file(f"{L1}\n{L2}\n")) == 1)
-check("parse multiple", len(parse_tle_file(f"{NAME}\n{L1}\n{L2}\n{NAME}\n{L1}\n{L2}\n")) == 2)
+    def test_period_is_physical_for_the_iss(self, iss_tle):
+        assert 92.0 < iss_tle.period_minutes < 93.0
 
-try:
-    parse_tle(L1, L2.replace("2 25544", "2 25545"))
-    check("mismatched catalog numbers rejected", False)
-except ValueError:
-    check("mismatched catalog numbers rejected", True)
 
-try:
-    parse_tle(L2, L1)
-    check("swapped lines rejected", False)
-except ValueError:
-    check("swapped lines rejected", True)
+class TestEpoch:
+    def test_epoch_decodes_to_the_right_day(self, iss_tle):
+        """24117.51782528 is 2024, day 117 = 26 April, at 0.51782528 of a day."""
+        assert (iss_tle.epoch.year, iss_tle.epoch.month, iss_tle.epoch.day) == (2024, 4, 26)
 
-print()
-print(f"{len(failures)} failure(s)" if failures else "all tests passed")
-sys.exit(1 if failures else 0)
+    def test_epoch_fraction_decodes_to_the_right_time(self, iss_tle):
+        assert (iss_tle.epoch.hour, iss_tle.epoch.minute) == (12, 25)
+
+    def test_epoch_is_timezone_aware_utc(self, iss_tle):
+        assert iss_tle.epoch.tzinfo == UTC
+
+    def test_age_is_zero_at_its_own_epoch(self, iss_tle):
+        assert iss_tle.age_days(iss_tle.epoch) == pytest.approx(0.0, abs=1e-9)
+
+
+class TestFileParsing:
+    def test_with_name_line(self, iss_lines):
+        name, l1, l2 = iss_lines
+        assert len(parse_tle_file(f"{name}\n{l1}\n{l2}\n")) == 1
+
+    def test_without_name_line(self, iss_lines):
+        _, l1, l2 = iss_lines
+        assert len(parse_tle_file(f"{l1}\n{l2}\n")) == 1
+
+    def test_multiple_records(self, iss_lines):
+        name, l1, l2 = iss_lines
+        assert len(parse_tle_file(f"{name}\n{l1}\n{l2}\n{name}\n{l1}\n{l2}\n")) == 2
+
+
+class TestRejectsMalformedInput:
+    def test_mismatched_catalog_numbers(self, iss_lines):
+        """Line 1 and line 2 must agree on which object they describe.
+
+        The altered line has its check digit recomputed, so this exercises the
+        catalog-number comparison rather than tripping the checksum first --
+        which is what an earlier version of this test did, passing for the
+        wrong reason.
+        """
+        _, l1, l2 = iss_lines
+        altered = l2.replace("2 25544", "2 25545")[:68]
+        altered += str(checksum(altered))
+        assert check_line(altered), "the altered line must itself be well formed"
+        with pytest.raises(ValueError, match="catalog numbers"):
+            parse_tle(l1, altered)
+
+    def test_swapped_lines(self, iss_lines):
+        _, l1, l2 = iss_lines
+        with pytest.raises(ValueError):
+            parse_tle(l2, l1)

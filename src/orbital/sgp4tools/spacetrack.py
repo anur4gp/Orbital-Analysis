@@ -18,13 +18,14 @@ from pathlib import Path
 
 import requests
 
+from orbital.paths import DATA_DIR, PROJECT_ROOT
+
 BASE = "https://www.space-track.org"
 LOGIN_URL = f"{BASE}/ajaxauth/login"
 QUERY_URL = f"{BASE}/basicspacedata/query"
 
-ROOT = Path(__file__).resolve().parent.parent
-ENV_PATH = ROOT / ".env"
-CACHE_DIR = ROOT / "data" / "spacetrack_cache"
+ENV_PATH = PROJECT_ROOT / ".env"
+CACHE_DIR = DATA_DIR / "spacetrack_cache"
 
 # Held under the published 30/min and 300/hr so bursts can't trip suspension.
 MAX_PER_MINUTE = 20
@@ -103,7 +104,7 @@ class SpaceTrack:
         self.limiter = RateLimiter()
         self._logged_in = False
 
-    def __enter__(self) -> "SpaceTrack":
+    def __enter__(self) -> SpaceTrack:
         self.login()
         return self
 

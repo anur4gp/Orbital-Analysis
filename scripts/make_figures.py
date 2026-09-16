@@ -9,22 +9,22 @@ colour-vision deficiency.
 Figures are vector PDF for LaTeX plus PNG for quick viewing. Expensive
 results are cached to data/figure_data.json -- rerun with --force to refresh.
 
-Run: ./venv/bin/python src/make_figures.py [--force]
+Run: python scripts/make_figures.py [--force]
 """
 from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from orbital.paths import PROJECT_ROOT
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = PROJECT_ROOT
 FIGDIR = ROOT / "writeup" / "figures"
 CACHE = ROOT / "data" / "figure_data.json"
 
@@ -210,18 +210,21 @@ def fig_surrogate(data: dict) -> None:
     labels = {"maxpro": "MaxPro (parallel tempering)",
               "random_lhd": "random LHD",
               "uniform": "uniform"}
-    for (name, (color, marker, ls)) in zip(("maxpro", "random_lhd", "uniform"), SERIES):
+    for (name, (color, marker, ls)) in zip(("maxpro", "random_lhd", "uniform"), SERIES, strict=False):
         d = data["surrogate"][name]
         n = np.array(d["n"], dtype=float)
-        rmse, spread = np.array(d["rmse"]), np.array(d["spread"])
+        rmse = np.array(d["rmse"])
+        spread = np.array(d["spread"])
         ax.errorbar(n, rmse, yerr=spread, color=color, lw=1.8, ls=ls,
                     marker=marker, ms=5.5, capsize=2.5, elinewidth=1.0,
                     label=labels[name], zorder=3)
     # No direct labels here: the three series converge at n=256, so end-of-line
     # labels collide. Identity is carried by marker shape and dash pattern as
     # well as hue, and the paper prints these values as a table.
-    ax.set_xscale("log"); ax.set_yscale("log")
-    ax.set_xticks([32, 64, 128, 256]); ax.set_xticklabels(["32", "64", "128", "256"])
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xticks([32, 64, 128, 256])
+    ax.set_xticklabels(["32", "64", "128", "256"])
     ax.set_xlabel("training evaluations $n$")
     ax.set_ylabel("RMSE in $\\log_{10} P_c$  (orders of magnitude)")
     ax.set_title("Surrogate accuracy vs training budget", loc="left")
@@ -304,7 +307,7 @@ def fig_triage() -> None:
 
     fig, ax = plt.subplots(figsize=(4.8, 3.3))
     pos = y[te].astype(bool)
-    for (name, s), (color, marker, ls) in zip(scores, SERIES):
+    for (name, s), (color, marker, ls) in zip(scores, SERIES, strict=False):
         order = np.argsort(-s)
         kept = np.arange(1, len(s) + 1) / len(s)
         recall = np.cumsum(pos[order]) / pos.sum()

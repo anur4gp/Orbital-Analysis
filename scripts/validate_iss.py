@@ -1,20 +1,14 @@
 """Phase 1 validation: propagate the ISS and sanity-check the results.
 
 Expected for the ISS: altitude ~400-430 km, period ~92-93 min, inclination
-51.6 deg. Run: ./venv/bin/python src/validate_iss.py
+51.6 deg. Run: python scripts/validate_iss.py
 """
 from __future__ import annotations
 
-import sys
-from datetime import timedelta
-from pathlib import Path
-
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from data_fetch import ISS_CATNR, fetch_tle
-from propagation import (
+from orbital.sgp4tools.celestrak import ISS_CATNR, fetch_tle
+from orbital.sgp4tools.propagation import (
     altitude_km,
     apsides_km,
     period_minutes,

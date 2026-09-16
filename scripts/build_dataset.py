@@ -9,28 +9,25 @@ The window is processed one day at a time. Holding 1971 objects x 7 days of
 positions and velocities at 60 s cadence would need ~950 MB; a day at a time
 needs ~140 MB.
 
-Run: ./venv/bin/python src/build_dataset.py
+Run: python scripts/build_dataset.py
 """
 from __future__ import annotations
 
-import sys
 import time
 from datetime import timedelta
-from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from data_fetch import fetch_gp
-from dataset import FEATURES, build
-from screening import screen
-from tle import parse_tle_file
+from orbital.conjunction.screening import screen
+from orbital.paths import DATA_DIR
+from orbital.sgp4tools.celestrak import fetch_gp
+from orbital.sgp4tools.tle import parse_tle_file
+from orbital.triage.features import FEATURES, build
 
 GROUPS = ("fengyun-1c-debris", "cosmos-2251-debris", "iridium-33-debris")
 DAYS = 7
 REFINE_THRESHOLD_KM = 50.0
-OUT = Path(__file__).resolve().parent.parent / "data" / "triage_dataset.csv"
+OUT = DATA_DIR / "triage_dataset.csv"
 
 
 def main() -> int:
@@ -68,7 +65,7 @@ def main() -> int:
     header = ",".join(FEATURES + ["log10_pc", "group", "day", "norad_i", "norad_j"])
     with open(OUT, "w") as fh:
         fh.write(header + "\n")
-        for row, label, meta in zip(x, y, all_meta):
+        for row, label, meta in zip(x, y, all_meta, strict=False):
             fh.write(",".join(f"{v:.6g}" for v in row) +
                      f",{label:.6g},{meta[0]},{meta[1]},{meta[2]},{meta[3]}\n")
     print(f"\nwrote {OUT}")

@@ -14,3 +14,4 @@ reference/lhd/build/
 *.so
 data/triage_dataset.csv
 data/figure_data.json
+.venv312/

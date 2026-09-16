@@ -11,15 +11,16 @@ from pathlib import Path
 
 import requests
 
-from tle import TLE, parse_tle_file
+from orbital.paths import DATA_DIR
+from orbital.sgp4tools.tle import TLE, parse_tle_file
 
 GP_URL = "https://celestrak.org/NORAD/elements/gp.php"
-CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "tle_cache"
+CACHE_DIR = DATA_DIR / "tle_cache"
 DEFAULT_MAX_AGE_HOURS = 2.0
 USER_AGENT = "orbital-analysis/0.1 (conjunction assessment portfolio project)"
 
 
-def _cache_path(key: str, value: str) -> Path:
+def _cache_path(key: str, value: str | int) -> Path:
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in str(value))
     return CACHE_DIR / f"{key}_{safe}.tle"
 
@@ -43,10 +44,15 @@ def fetch_gp(
     If the network call fails but a stale cache exists, the stale copy is
     returned rather than failing outright.
     """
-    if (catnr is None) == (group is None):
+    key: str
+    value: str | int
+    if catnr is not None and group is None:
+        key, value = "CATNR", catnr
+    elif group is not None and catnr is None:
+        key, value = "GROUP", group
+    else:
         raise ValueError("pass exactly one of catnr or group")
 
-    key, value = ("CATNR", catnr) if catnr is not None else ("GROUP", group)
     path = _cache_path(key.lower(), value)
 
     if not force and _is_fresh(path, max_age_hours):

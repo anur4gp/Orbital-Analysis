@@ -79,7 +79,8 @@ def fit_gp(x: np.ndarray, y: np.ndarray, n_restarts: int = 4,
 
     dim = x.shape[1]
     rng = np.random.default_rng(seed)
-    best, best_val = None, np.inf
+    best: np.ndarray | None = None
+    best_val = np.inf
     # Start from a unit-amplitude, mid-range-length-scale, low-noise guess and
     # perturb; the marginal likelihood is multimodal in the length scales.
     start = np.concatenate([[0.0], np.full(dim, np.log(0.5)), [np.log(1e-3)]])
@@ -93,6 +94,7 @@ def fit_gp(x: np.ndarray, y: np.ndarray, n_restarts: int = 4,
         if res.fun < best_val:
             best_val, best = float(res.fun), res.x
 
+    assert best is not None, "at least one restart always runs"
     log_theta, log_noise = best[:-1], best[-1]
     k = ard_sqexp(x, x, log_theta) + (np.exp(2.0 * log_noise) + 1e-10) * np.eye(x.shape[0])
     lower = np.linalg.cholesky(k)

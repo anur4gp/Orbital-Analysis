@@ -18,19 +18,11 @@ Thresholds are quoted at a target recall slightly below 1.0 as well, because
 requiring literally every training positive makes the operating point
 hostage to a single hardest example.
 
-Run: ./venv/bin/python src/run_triage.py
+Run: python scripts/run_triage.py
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import numpy as np
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from dataset import FEATURES
-
 from sklearn.base import clone
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
@@ -38,7 +30,10 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-DATA = Path(__file__).resolve().parent.parent / "data" / "triage_dataset.csv"
+from orbital.paths import DATA_DIR
+from orbital.triage.features import FEATURES
+
+DATA = DATA_DIR / "triage_dataset.csv"
 THRESHOLD = -10.0
 TEST_DAYS = (5, 6)          # zero-indexed: last two days of each window
 SEED = 7

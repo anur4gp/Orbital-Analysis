@@ -6,12 +6,12 @@ All state vectors below are TEME frame, km and km/s.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 from sgp4.api import Satrec, jday
 
-from tle import TLE
+from orbital.sgp4tools.tle import TLE
 
 MU_EARTH = 398600.4418      # km^3/s^2
 R_EARTH_EQ = 6378.137       # km, WGS-72/84 equatorial radius
@@ -28,7 +28,7 @@ def satrec_from_tle(t: TLE) -> Satrec:
 def _to_jd(when: datetime) -> tuple[float, float]:
     """UTC datetime -> (jd, fr). Naive datetimes are assumed to be UTC."""
     if when.tzinfo is not None:
-        when = when.astimezone(timezone.utc).replace(tzinfo=None)
+        when = when.astimezone(UTC).replace(tzinfo=None)
     seconds = when.second + when.microsecond * 1e-6
     return jday(when.year, when.month, when.day, when.hour, when.minute, seconds)
 

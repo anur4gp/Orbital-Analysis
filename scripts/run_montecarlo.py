@@ -3,66 +3,21 @@
 Produces the expensive ground truth Phase 3's surrogate is benchmarked
 against, and measures what that expense actually is.
 
-Run: ./venv/bin/python src/run_montecarlo.py
+Run: python scripts/run_montecarlo.py
 """
 from __future__ import annotations
 
-import sys
 import time
-from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from conjunctions import build_geometry, deduplicate, fetch_tles_for, load_events, tractable
-from covariance import CALIBRATED_SIGMA_R_KM, RTNCovariance, combined_covariance
-from montecarlo import (hard_body_radius_km, pc_analytic, pc_monte_carlo,
-                        project_encounter)
-from spacetrack import SpaceTrack
+from orbital.conjunction.cases import Case, build_cases
+from orbital.conjunction.covariance import CALIBRATED_SIGMA_R_KM, RTNCovariance
+from orbital.conjunction.probability import pc_analytic, pc_monte_carlo
 
 N_EVENTS = 10
 N_DRAWS = 5_000_000
-MIN_VREL_KM_S = 1.0
 SEED = 2024
-
-
-@dataclass
-class Case:
-    """One conjunction reduced to the 2D encounter-plane problem."""
-
-    event: object
-    mu_2d: np.ndarray
-    cov_2d: np.ndarray
-    hbr_km: float
-    vrel: float
-
-
-def build_cases(limit: int) -> list[Case]:
-    with SpaceTrack() as st:
-        events = deduplicate(tractable(load_events(st, limit=500)))
-        ids = {i for e in events[: limit * 3] for i in e.object_ids}
-        tles = fetch_tles_for(st, ids)
-
-    cov_model = RTNCovariance(CALIBRATED_SIGMA_R_KM)
-    cases = []
-    for event in events:
-        g = build_geometry(event, tles)
-        if g is None or g.relative_velocity_km_s < MIN_VREL_KM_S:
-            continue
-        cov = combined_covariance(g.r1, g.v1, g.r2, g.v2, cov_model, cov_model)
-        mu_2d, cov_2d = project_encounter(g.r1 - g.r2, g.v1 - g.v2, cov)
-        cases.append(Case(
-            event=event,
-            mu_2d=mu_2d,
-            cov_2d=cov_2d,
-            hbr_km=hard_body_radius_km(event.sat1_rcs, event.sat2_rcs),
-            vrel=g.relative_velocity_km_s,
-        ))
-        if len(cases) >= limit:
-            break
-    return cases
 
 
 def main() -> int:
