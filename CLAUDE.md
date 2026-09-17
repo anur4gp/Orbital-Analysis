@@ -371,10 +371,16 @@ paper prints the same numbers as tables.
 
 **LaTeX state:** four .tex files, all structurally valid (braces,
 environments, refs, siunitx S-columns, citations). `report.tex` cites all 10
-bibliography entries. **Still not compile-verified** — no TeX toolchain on
-this machine. Overleaf compiled project_log.tex fine. To build locally:
-install TinyTeX or Tectonic + the LaTeX Workshop VS Code extension, then
-`tlmgr install siunitx booktabs multirow`.
+bibliography entries. **`report.tex` is now compile-verified**: Anurag
+rendered it (2026-09-17) and the PDF is committed at `writeup/report.pdf`,
+8 pages, all four figures placed. The other three .tex files remain
+structurally checked but not rendered. No TeX toolchain on this machine; to
+build locally install TinyTeX or Tectonic + the LaTeX Workshop VS Code
+extension, then `tlmgr install siunitx booktabs multirow`.
+
+**Report scope:** `report.tex` covers the conjunction work only (original
+Phases 1-5). It contains no 6-DOF, EKF/UKF or campaign material and uses
+figures 1-4 only; figures 5-8 are referenced from the README instead.
 
 **Bibliographic details in report.tex were written from memory and must be
 checked before any submission.**

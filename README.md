@@ -11,7 +11,10 @@ second is a 6-DOF rigid-body propagator and an EKF/UKF orbit-determination
 stack built on top of it.
 
 A short report covering the conjunction work, including its negative
-results, is in [`writeup/report.tex`](writeup/report.tex).
+results, is in [`writeup/report.tex`](writeup/report.tex) —
+**[compiled PDF here](writeup/report.pdf)** (8 pages). It does not cover the
+flight-dynamics and estimation work; that is documented in this README and
+in the running log, [`writeup/project_log.tex`](writeup/project_log.tex).
 
 ## Headline results
 
