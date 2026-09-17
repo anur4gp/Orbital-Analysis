@@ -48,7 +48,22 @@ _NOMINAL_BODY = MassProperties(100.0, InertiaTensor.diagonal(10.0, 12.0, 15.0))
 def truth_trajectory(
     forces: Sequence[ForceModel], x0: ArrayLike, t_s: ArrayLike
 ) -> FloatArray:
-    """True 6-element states at ``t_s`` from the 6-DOF propagator, shape ``(K, 6)``."""
+    """True states from the 6-DOF propagator.
+
+    Parameters
+    ----------
+    forces
+        Force models; the same ones the filter uses.
+    x0
+        Initial state ``[r (km), v (km/s)]``, shape (6,).
+    t_s
+        Output times, s since the reference epoch.
+
+    Returns
+    -------
+    numpy.ndarray
+        States at ``t_s``, shape (K, 6).
+    """
     x0 = np.asarray(x0, dtype=float)
     body = RigidBody(_NOMINAL_BODY, tuple(forces))
     initial = RigidBodyState(x0[:3], x0[3:], IDENTITY, np.zeros(3), float(np.asarray(t_s)[0]))
@@ -158,6 +173,22 @@ def monte_carlo(
 
     Each run draws one initial estimate and one set of measurement noise;
     all filters see identical inputs, so their differences are the filters'.
+
+    Parameters
+    ----------
+    scenario
+        Truth, tracking network and initial covariance.
+    filters
+        Filters to compare.
+    n_runs
+        Monte Carlo runs.
+    seed
+        Base seed, making the whole campaign reproducible.
+
+    Returns
+    -------
+    dict
+        One :class:`MonteCarloResult` per filter name.
     """
     truth = scenario.truth()
     rng = np.random.default_rng(seed)
@@ -194,7 +225,22 @@ def monte_carlo(
 def circular_orbit_state(
     a_km: float, inclination_deg: float, raan_deg: float = 0.0
 ) -> FloatArray:
-    """State of a circular orbit at its ascending node, km and km/s, ECI_J2000."""
+    """State of a circular orbit at its ascending node.
+
+    Parameters
+    ----------
+    a_km
+        Orbit radius, km.
+    inclination_deg
+        Inclination, degrees.
+    raan_deg
+        Right ascension of the ascending node, degrees.
+
+    Returns
+    -------
+    numpy.ndarray
+        State ``[r (km), v (km/s)]`` in ECI_J2000, shape (6,).
+    """
     c = rot_z(np.radians(raan_deg)) @ rot_x(np.radians(inclination_deg))
     speed = np.sqrt(MU_EARTH_KM3_S2 / a_km)
     return np.concatenate([c @ [a_km, 0.0, 0.0], c @ [0.0, speed, 0.0]])
@@ -206,7 +252,25 @@ def tracking_network(
     min_elevation_deg: float = 10.0,
     epoch: datetime | None = None,
 ) -> list[RangeRangeRate]:
-    """Range/range-rate models for the three default sites."""
+    """Range/range-rate models for the three default sites.
+
+    Parameters
+    ----------
+    sigma_range_km
+        Range noise, 1-sigma, km.
+    sigma_range_rate_km_s
+        Range-rate noise, 1-sigma, km/s.
+    min_elevation_deg
+        Elevation mask, degrees.
+    epoch
+        Reference epoch for Earth orientation. None means
+        :data:`DEFAULT_EPOCH`.
+
+    Returns
+    -------
+    list of RangeRangeRate
+        One model per site in :data:`DEFAULT_SITES`.
+    """
     earth = EarthRotation(DEFAULT_EPOCH if epoch is None else epoch)
     return [
         RangeRangeRate(

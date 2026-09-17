@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 
@@ -21,7 +22,8 @@ def _parse_tca(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "")).replace(tzinfo=UTC)
 
 
-def _to_float(value) -> float | None:
+def _to_float(value: Any) -> float | None:
+    """Parse a Space-Track field, returning None when it is absent or blank."""
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -49,6 +51,7 @@ class Event:
 
     @property
     def object_ids(self) -> tuple[int, int]:
+        """NORAD ids of the two objects, primary first."""
         return self.sat1_id, self.sat2_id
 
     @property
@@ -60,6 +63,7 @@ class Event:
 
 
 def parse_event(row: dict) -> Event:
+    """Build an :class:`Event` from one cdm_public JSON row."""
     return Event(
         cdm_id=int(row["CDM_ID"]),
         tca=_parse_tca(row["TCA"]),
@@ -78,7 +82,22 @@ def parse_event(row: dict) -> Event:
     )
 
 
-def load_events(st: SpaceTrack, limit: int = 500, **kwargs) -> list[Event]:
+def load_events(st: SpaceTrack, limit: int = 500, **kwargs: Any) -> list[Event]:
+    """Most recent cdm_public records, newest first.
+
+    Parameters
+    ----------
+    st
+        Authenticated Space-Track client.
+    limit
+        Maximum rows to request.
+    **kwargs
+        Extra query predicates passed through to the client.
+
+    Returns
+    -------
+    list of Event
+    """
     rows = st.query("cdm_public", orderby="TCA desc", limit=limit, **kwargs)
     return [parse_event(r) for r in rows]
 
@@ -96,11 +115,27 @@ def tractable(events: list[Event]) -> list[Event]:
     ]
 
 
-def fetch_tles_for(st: SpaceTrack, norad_ids: Iterable[int], **kwargs) -> dict[int, TLE]:
+def fetch_tles_for(
+    st: SpaceTrack, norad_ids: Iterable[int], **kwargs: Any
+) -> dict[int, TLE]:
     """Fetch latest TLEs for many objects in ONE request.
 
     Space-Track throttles gp queries hard, so ids are sent as a comma-
     delimited list rather than looped one per request.
+
+    Parameters
+    ----------
+    st
+        Authenticated Space-Track client.
+    norad_ids
+        Catalog numbers; duplicates are collapsed.
+    **kwargs
+        Extra query predicates passed through to the client.
+
+    Returns
+    -------
+    dict
+        Element set per catalog number, omitting objects with no usable TLE.
     """
     ids = sorted({int(i) for i in norad_ids})
     rows = st.query(
@@ -133,14 +168,17 @@ class Geometry:
 
     @property
     def miss_km(self) -> float:
+        """Rebuilt miss distance at TCA, km."""
         return float(np.linalg.norm(self.r1 - self.r2))
 
     @property
     def relative_velocity_km_s(self) -> float:
+        """Rebuilt relative speed at TCA, km/s."""
         return float(np.linalg.norm(self.v1 - self.v2))
 
     @property
     def reported_miss_km(self) -> float | None:
+        """18 SDS's own miss distance, km, or None when absent."""
         return None if self.event.min_rng_m is None else self.event.min_rng_m / 1000.0
 
     @property
@@ -156,7 +194,20 @@ class Geometry:
 
 
 def build_geometry(event: Event, tles: dict) -> Geometry | None:
-    """Propagate both objects to TCA. Returns None if either TLE is missing."""
+    """Propagate both objects to TCA.
+
+    Parameters
+    ----------
+    event
+        Screening record supplying the epoch and the object ids.
+    tles
+        Element sets keyed by catalog number.
+
+    Returns
+    -------
+    Geometry or None
+        None when either object's element set is missing.
+    """
     t1, t2 = tles.get(event.sat1_id), tles.get(event.sat2_id)
     if t1 is None or t2 is None:
         return None
@@ -177,8 +228,21 @@ def deduplicate(events: list[Event], tca_tolerance_s: float = 900.0) -> list[Eve
     -- and also re-files it as the estimate is refined, each revision landing
     at a slightly different TCA. So an exact-TCA key is not enough: events are
     grouped by unordered object pair, then merged when their TCAs fall within
-    `tca_tolerance_s`. Leaving duplicates in would double-count during
+    ``tca_tolerance_s``. Leaving duplicates in would double-count during
     calibration and leak between train and test in Phase 4.
+
+    Parameters
+    ----------
+    events
+        Records to collapse.
+    tca_tolerance_s
+        Two filings of one pair within this many seconds are treated as the
+        same conjunction.
+
+    Returns
+    -------
+    list of Event
+        One record per distinct conjunction, sorted by TCA.
     """
     by_pair: dict[frozenset, list[Event]] = {}
     for e in events:

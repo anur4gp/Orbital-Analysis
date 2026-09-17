@@ -71,15 +71,18 @@ class TwoBodyGravity:
     def acceleration(
         self, state: RigidBodyState, mass_properties: MassProperties
     ) -> FloatArray:
+        """Point-mass acceleration at the state's position, km/s^2."""
         r = state.r_km
         rn = float(np.linalg.norm(r))
         return -self.mu_km3_s2 * r / rn**3
 
     def acceleration_many(self, r_km: FloatArray) -> FloatArray:
+        """Vectorised point-mass acceleration, km/s^2, for positions (k, 3)."""
         rn = np.sqrt(np.einsum("ki,ki->k", r_km, r_km))
         return -self.mu_km3_s2 * r_km / rn[:, None] ** 3
 
     def potential(self, r_km: FloatArray) -> float:
+        """Point-mass potential ``-mu / r`` per unit mass, km^2/s^2."""
         return -self.mu_km3_s2 / float(np.linalg.norm(r_km))
 
 
@@ -109,9 +112,11 @@ class J2Gravity:
     def acceleration(
         self, state: RigidBodyState, mass_properties: MassProperties
     ) -> FloatArray:
+        """Oblateness perturbation at the state's position, km/s^2."""
         return self.acceleration_many(state.r_km[None, :])[0]
 
     def acceleration_many(self, r_km: FloatArray) -> FloatArray:
+        """Vectorised oblateness perturbation, km/s^2, for positions (k, 3)."""
         x, y, z = r_km[:, 0], r_km[:, 1], r_km[:, 2]
         r2 = x * x + y * y + z * z
         k = -1.5 * self.j2 * self.mu_km3_s2 * self.r_ref_km**2 / r2**2.5
@@ -119,6 +124,7 @@ class J2Gravity:
         return np.column_stack([k * x * (1.0 - zr), k * y * (1.0 - zr), k * z * (3.0 - zr)])
 
     def potential(self, r_km: FloatArray) -> float:
+        """J2 potential per unit mass, km^2/s^2. See the class docstring."""
         r = float(np.linalg.norm(r_km))
         z = float(r_km[2])
         return (

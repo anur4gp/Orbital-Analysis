@@ -44,10 +44,17 @@ def despine(ax: Any) -> None:
 
 
 def save(fig: Any, stem: str) -> None:
-    """Write ``stem`` as vector PDF and PNG under ``writeup/figures``.
+    """Write a figure as vector PDF and PNG under ``writeup/figures``.
 
     The PDF creation date is omitted so that regenerating an unchanged figure
     leaves the file byte-identical and out of the git diff.
+
+    Parameters
+    ----------
+    fig
+        The matplotlib figure.
+    stem
+        File name without extension.
     """
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGURE_DIR / f"{stem}.pdf", bbox_inches="tight", metadata={"CreationDate": None})

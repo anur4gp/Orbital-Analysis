@@ -74,7 +74,21 @@ class RigidBodyState:
     def from_vector(
         cls, y: ArrayLike, t_s: float = 0.0, frame: Frame = Frame.ECI_J2000
     ) -> RigidBodyState:
-        """Unpack a 13-element vector. The quaternion is normalised."""
+        """Unpack a 13-element vector. The quaternion is normalised.
+
+        Parameters
+        ----------
+        y
+            Packed state, shape (13,); see the module docstring for layout.
+        t_s
+            Time since the reference epoch, s.
+        frame
+            Frame of the translational states.
+
+        Returns
+        -------
+        RigidBodyState
+        """
         arr = np.asarray(y, dtype=float)
         if arr.shape != (STATE_SIZE,):
             raise ValueError(f"state vector must have shape ({STATE_SIZE},), got {arr.shape}")

@@ -162,4 +162,5 @@ class Provenance:
     started_utc: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def to_dict(self) -> dict[str, str]:
+        """Fields as plain strings, for the stored JSON."""
         return asdict(self)

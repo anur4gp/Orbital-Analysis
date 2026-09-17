@@ -77,6 +77,7 @@ class TLE:
 
     @property
     def period_minutes(self) -> float:
+        """Orbital period from the mean motion, minutes."""
         return 1440.0 / self.mean_motion
 
     def age_days(self, at: datetime | None = None) -> float:
@@ -90,7 +91,25 @@ class TLE:
 
 
 def parse_tle(line1: str, line2: str, name: str = "") -> TLE:
-    """Parse one TLE by column position. Raises ValueError on a bad checksum."""
+    """Parse one two-line element set by column position.
+
+    Parameters
+    ----------
+    line1, line2
+        The two element-set lines, with or without trailing newlines.
+    name
+        Optional object name from the preceding line-0 record.
+
+    Returns
+    -------
+    TLE
+
+    Raises
+    ------
+    ValueError
+        If either line fails checksum or length validation, the lines are out
+        of order, or the two lines carry different catalog numbers.
+    """
     line1, line2 = line1.rstrip("\r\n"), line2.rstrip("\r\n")
     for n, line in ((1, line1), (2, line2)):
         if not check_line(line):

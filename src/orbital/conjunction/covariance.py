@@ -28,8 +28,19 @@ def rtn_basis(r: np.ndarray, v: np.ndarray) -> np.ndarray:
 
     R = radial (along position), N = orbit normal (along r x v),
     T = N x R, which completes the right-handed triad and lies along the
-    velocity for a circular orbit. Returned matrix A maps RTN -> inertial:
-    x_eci = A @ x_rtn.
+    velocity for a circular orbit.
+
+    Parameters
+    ----------
+    r
+        Position, km, inertial frame, shape (3,).
+    v
+        Velocity, km/s, inertial frame, shape (3,).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape (3, 3), mapping RTN to inertial: ``x_eci = A @ x_rtn``.
     """
     r = np.asarray(r, dtype=float)
     v = np.asarray(v, dtype=float)
@@ -51,10 +62,12 @@ class RTNCovariance:
 
     @property
     def sigma_t_km(self) -> float:
+        """In-track 1-sigma, km: the radial scale times ``k_t``."""
         return self.k_t * self.sigma_r_km
 
     @property
     def sigma_n_km(self) -> float:
+        """Cross-track 1-sigma, km: the radial scale times ``k_n``."""
         return self.k_n * self.sigma_r_km
 
     def matrix_rtn(self) -> np.ndarray:
@@ -64,7 +77,20 @@ class RTNCovariance:
         )
 
     def matrix_eci(self, r: np.ndarray, v: np.ndarray) -> np.ndarray:
-        """Same covariance rotated into the inertial frame: A C A^T."""
+        """Same covariance rotated into the inertial frame: ``A C A^T``.
+
+        Parameters
+        ----------
+        r
+            Position, km, inertial frame, shape (3,).
+        v
+            Velocity, km/s, inertial frame, shape (3,).
+
+        Returns
+        -------
+        numpy.ndarray
+            Covariance in the inertial frame, km^2, shape (3, 3).
+        """
         a = rtn_basis(r, v)
         return a @ self.matrix_rtn() @ a.T
 
@@ -79,6 +105,20 @@ def combined_covariance(
     rotated into a common frame before summing -- adding them componentwise
     in RTN would be wrong. Assumes the two error sets are independent, which
     is standard for objects tracked separately.
+
+    Parameters
+    ----------
+    r1, v1
+        First object's position (km) and velocity (km/s), inertial frame.
+    r2, v2
+        Second object's position and velocity, same units.
+    cov1, cov2
+        Each object's RTN covariance model.
+
+    Returns
+    -------
+    numpy.ndarray
+        Relative-position covariance, km^2, shape (3, 3).
     """
     return cov1.matrix_eci(r1, v1) + cov2.matrix_eci(r2, v2)
 
@@ -86,10 +126,24 @@ def combined_covariance(
 def sample_relative_offsets(
     cov: np.ndarray, n: int, rng: np.random.Generator
 ) -> np.ndarray:
-    """Draw n relative-position offsets from N(0, cov). Returns (n, 3).
+    """Draw relative-position offsets from ``N(0, cov)``.
 
     Uses the Cholesky factor; falls back to an eigendecomposition if the
     matrix is numerically non-positive-definite.
+
+    Parameters
+    ----------
+    cov
+        Relative-position covariance, km^2, shape (3, 3).
+    n
+        Number of offsets to draw.
+    rng
+        Random generator; seed it for reproducibility.
+
+    Returns
+    -------
+    numpy.ndarray
+        Offsets, km, shape (n, 3).
     """
     try:
         factor = np.linalg.cholesky(cov)

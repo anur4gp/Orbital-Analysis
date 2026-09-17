@@ -87,7 +87,24 @@ class Integrator(Protocol):
         t_eval: ArrayLike,
         constraint: Constraint | None = None,
     ) -> IntegrationResult:
-        """Integrate from ``t_eval[0]`` and return the state at every ``t_eval``."""
+        """Integrate from ``t_eval[0]`` and report the state at every output time.
+
+        Parameters
+        ----------
+        f
+            Right-hand side ``f(t, y)``, in the caller's units per second.
+        y0
+            Initial state at ``t_eval[0]``.
+        t_eval
+            Output times, s, strictly increasing.
+        constraint
+            Optional state constraint to enforce during the integration.
+
+        Returns
+        -------
+        IntegrationResult
+            States at ``t_eval``, plus cost and projection statistics.
+        """
         ...
 
 

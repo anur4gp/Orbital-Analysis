@@ -33,13 +33,17 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import numpy as np
-from sgp4.api import SatrecArray
+from sgp4.api import Satrec, SatrecArray
 
 from orbital.sgp4tools.propagation import _to_jd, satrec_from_tle
 from orbital.sgp4tools.tle import TLE
 
 # Widest plausible closing speed in LEO (head-on, ~7.7 km/s each).
 MAX_VREL_KM_S = 16.0
+
+
+#: What refine() returns: (TCA, miss km, relative speed km/s, r1, v1, r2, v2).
+RefinedApproach = tuple[datetime, float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 
 
 @dataclass
@@ -62,19 +66,53 @@ class Conjunction:
 def coarse_gate_km(step_seconds: float, refine_threshold_km: float) -> float:
     """Separation gate that cannot miss an approach closer than the target.
 
-    Between samples the pair closes by at most MAX_VREL * step, so the true
-    minimum can sit up to half that below the smallest sampled separation.
+    Between samples the pair closes by at most ``MAX_VREL_KM_S * step``, so
+    the true minimum can sit up to half that below the smallest sampled
+    separation.
+
+    Parameters
+    ----------
+    step_seconds
+        Sampling interval of the coarse grid, s.
+    refine_threshold_km
+        Separation of interest, km: approaches closer than this must not be
+        missed.
+
+    Returns
+    -------
+    float
+        Gate on sampled separation, km.
     """
     return refine_threshold_km + 0.5 * MAX_VREL_KM_S * step_seconds
 
 
-def propagate_catalog(tles: list[TLE], start: datetime, minutes: float,
-                      step_seconds: float):
+def propagate_catalog(
+    tles: list[TLE], start: datetime, minutes: float, step_seconds: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Propagate every object onto a shared grid. Returns (offsets, r, ok).
 
-    `r` and `v` are (n_objects, n_times, 3) in TEME km and km/s. `ok` masks
-    objects whose SGP4 calls all succeeded -- decayed objects raise error
-    codes and must be dropped rather than silently producing garbage.
+    Parameters
+    ----------
+    tles
+        Element sets to propagate.
+    start
+        Grid start epoch, UTC.
+    minutes
+        Grid length, minutes.
+    step_seconds
+        Grid spacing, s.
+
+    Returns
+    -------
+    offsets : numpy.ndarray
+        Seconds since ``start``, shape (n_times,).
+    r, v : numpy.ndarray
+        Positions (km) and velocities (km/s) in TEME, shape
+        (n_objects, n_times, 3).
+    ok : numpy.ndarray
+        Boolean mask of objects whose SGP4 calls all succeeded. Decayed
+        objects raise error codes and must be dropped rather than silently
+        producing garbage.
     """
     sats = [satrec_from_tle(t) for t in tles]
     offsets = np.arange(0.0, minutes * 60.0 + step_seconds, step_seconds)
@@ -88,9 +126,10 @@ def propagate_catalog(tles: list[TLE], start: datetime, minutes: float,
     return offsets, r, v, ok
 
 
-def find_candidates(r: np.ndarray, v: np.ndarray, gate_km: float,
-                    keep_threshold_km: float, step_seconds: float,
-                    pair_chunk: int = 2_000_000):
+def find_candidates(
+    r: np.ndarray, v: np.ndarray, gate_km: float, keep_threshold_km: float,
+    step_seconds: float, pair_chunk: int = 2_000_000,
+) -> list[tuple[int, int, int]]:
     """Local minima of separation that could plausibly be genuine near misses.
 
     Scans the time grid keeping only three consecutive separation vectors, so
@@ -99,10 +138,29 @@ def find_candidates(r: np.ndarray, v: np.ndarray, gate_km: float,
     just the global one.
 
     Each surviving local minimum is then screened analytically: with relative
-    position `dr` and velocity `dv`, rectilinear motion reaches its closest
-    approach at `t* = -(dr.dv)/|dv|^2`, giving a minimum separation of
-    `|dr + t* dv|`. Only minima whose linear estimate falls inside the keep
-    threshold (plus a margin for curvature) go on to SGP4 refinement.
+    position ``dr`` and velocity ``dv``, rectilinear motion reaches its
+    closest approach at ``t* = -(dr.dv)/|dv|^2``, giving a minimum separation
+    of ``|dr + t* dv|``. Only minima whose linear estimate falls inside the
+    keep threshold (plus a margin for curvature) go on to SGP4 refinement.
+
+    Parameters
+    ----------
+    r, v
+        Positions (km) and velocities (km/s), shape (n_objects, n_times, 3).
+    gate_km
+        Sampled-separation gate, km, from :func:`coarse_gate_km`.
+    keep_threshold_km
+        Analytic minimum separation to keep, km.
+    step_seconds
+        Grid spacing, s, used to size the curvature margin.
+    pair_chunk
+        Pairs evaluated per block, bounding peak memory.
+
+    Returns
+    -------
+    list of tuple
+        ``(i, j, time_index)`` per surviving local minimum, with ``i`` and
+        ``j`` indexing the propagated arrays.
     """
     n, n_times, _ = r.shape
     iu, ju = np.triu_indices(n, k=1)
@@ -142,7 +200,7 @@ def find_candidates(r: np.ndarray, v: np.ndarray, gate_km: float,
     return hits
 
 
-def _sep_sq(sat_a, sat_b, when: datetime) -> float:
+def _sep_sq(sat_a: Satrec, sat_b: Satrec, when: datetime) -> float:
     jd, fr = _to_jd(when)
     ea, ra, _ = sat_a.sgp4(jd, fr)
     eb, rb, _ = sat_b.sgp4(jd, fr)
@@ -152,8 +210,10 @@ def _sep_sq(sat_a, sat_b, when: datetime) -> float:
     return float(d @ d)
 
 
-def refine(sat_a, sat_b, t_center: datetime, half_window_s: float,
-           iterations: int = 8):
+def refine(
+    sat_a: Satrec, sat_b: Satrec, t_center: datetime, half_window_s: float,
+    iterations: int = 8,
+) -> RefinedApproach | None:
     """Refine a candidate to its true TCA by parabolic interpolation.
 
     Near closest approach relative motion is nearly rectilinear, so squared
@@ -161,6 +221,23 @@ def refine(sat_a, sat_b, t_center: datetime, half_window_s: float,
     the vertex directly. The bracket shrinks each iteration, reaching
     sub-millisecond timing -- necessary because at 15 km/s even one second of
     timing error is 15 km of separation error.
+
+    Parameters
+    ----------
+    sat_a, sat_b
+        SGP4 propagators for the two objects.
+    t_center
+        Starting estimate of closest approach, UTC.
+    half_window_s
+        Initial half-bracket, s.
+    iterations
+        Refinement steps; the bracket halves each time.
+
+    Returns
+    -------
+    tuple or None
+        ``(tca, miss_km, vrel_km_s, r1, v1, r2, v2)``, or None if either
+        object returns an SGP4 error near the minimum.
     """
     best_t, h = t_center, half_window_s
     for _ in range(iterations):
@@ -193,7 +270,28 @@ def refine(sat_a, sat_b, t_center: datetime, half_window_s: float,
 def screen(tles: list[TLE], start: datetime, minutes: float = 1440.0,
            step_seconds: float = 60.0, refine_threshold_km: float = 50.0,
            verbose: bool = True) -> list[Conjunction]:
-    """Full screening pass over a catalog. Returns refined conjunctions."""
+    """Full screening pass over a catalog.
+
+    Parameters
+    ----------
+    tles
+        Catalog to screen.
+    start
+        Window start, UTC.
+    minutes
+        Window length, minutes.
+    step_seconds
+        Coarse grid spacing, s.
+    refine_threshold_km
+        Keep conjunctions closer than this, km.
+    verbose
+        Print per-stage counts, which is how the sieve's yield is monitored.
+
+    Returns
+    -------
+    list of Conjunction
+        Refined close approaches within ``refine_threshold_km``.
+    """
     offsets, r, v, ok = propagate_catalog(tles, start, minutes, step_seconds)
     kept = np.flatnonzero(ok)
     if verbose:

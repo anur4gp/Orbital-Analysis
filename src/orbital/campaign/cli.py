@@ -44,6 +44,7 @@ def default_out_root() -> Path:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Command-line parser for the campaign runner."""
     p = argparse.ArgumentParser(
         prog="python -m orbital.campaign",
         description="Run a Monte Carlo filter campaign over a space-filling design.",
@@ -64,6 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run one campaign (or shard) and write its rows. Returns an exit code."""
     args = build_parser().parse_args(argv)
     config = CampaignConfig(
         n_points=args.points, n_trials=args.trials, design=args.design,

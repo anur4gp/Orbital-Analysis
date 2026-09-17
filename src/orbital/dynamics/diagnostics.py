@@ -16,7 +16,20 @@ from orbital.dynamics.inertia import InertiaTensor
 
 
 def rotational_kinetic_energy(omega_rad_s: FloatArray, inertia: InertiaTensor) -> FloatArray:
-    """``T = 1/2 omega . I omega``, J, for ``omega`` of shape ``(N, 3)``."""
+    """Rotational kinetic energy ``T = 1/2 omega . I omega``.
+
+    Parameters
+    ----------
+    omega_rad_s
+        Body angular velocity, rad/s, shape (N, 3) or (3,).
+    inertia
+        Inertia tensor about the centre of mass.
+
+    Returns
+    -------
+    numpy.ndarray
+        Energy, J, shape (N,).
+    """
     w = np.atleast_2d(omega_rad_s)
     return 0.5 * np.einsum("ni,ij,nj->n", w, inertia.matrix, w)
 
@@ -26,8 +39,22 @@ def angular_momentum_inertial(
 ) -> FloatArray:
     """Body angular momentum in inertial axes, ``H_I = C(q) I omega``, kg m^2/s.
 
-    Returns shape ``(N, 3)``. Conserved as a *vector* when torque-free, which
-    tests the attitude history, not just the body rates.
+    Conserved as a *vector* when torque-free, which tests the attitude
+    history, not just the body rates.
+
+    Parameters
+    ----------
+    q
+        Attitude quaternions, BODY to inertial, shape (N, 4) or (4,).
+    omega_rad_s
+        Body angular velocity, rad/s, shape (N, 3) or (3,).
+    inertia
+        Inertia tensor about the centre of mass.
+
+    Returns
+    -------
+    numpy.ndarray
+        Angular momentum in inertial axes, kg m^2/s, shape (N, 3).
     """
     qs = np.atleast_2d(q)
     ws = np.atleast_2d(omega_rad_s)
@@ -37,7 +64,22 @@ def angular_momentum_inertial(
 def specific_orbital_energy(
     r_km: FloatArray, v_km_s: FloatArray, gravity: Sequence[ConservativeForce]
 ) -> FloatArray:
-    """``E = |v|^2 / 2 + sum V(r)``, km^2/s^2, shape ``(N,)``."""
+    """Specific mechanical energy ``E = |v|^2 / 2 + sum V(r)``.
+
+    Parameters
+    ----------
+    r_km
+        Positions, km, shape (N, 3) or (3,).
+    v_km_s
+        Velocities, km/s, same shape.
+    gravity
+        Conservative force models supplying the potentials.
+
+    Returns
+    -------
+    numpy.ndarray
+        Energy per unit mass, km^2/s^2, shape (N,).
+    """
     rs = np.atleast_2d(r_km)
     vs = np.atleast_2d(v_km_s)
     kinetic = 0.5 * np.einsum("ni,ni->n", vs, vs)
@@ -46,5 +88,18 @@ def specific_orbital_energy(
 
 
 def specific_angular_momentum(r_km: FloatArray, v_km_s: FloatArray) -> FloatArray:
-    """Orbital ``h = r x v``, km^2/s, shape ``(N, 3)``."""
+    """Specific orbital angular momentum ``h = r x v``.
+
+    Parameters
+    ----------
+    r_km
+        Positions, km, shape (N, 3) or (3,).
+    v_km_s
+        Velocities, km/s, same shape.
+
+    Returns
+    -------
+    numpy.ndarray
+        Angular momentum per unit mass, km^2/s, shape (N, 3).
+    """
     return np.cross(np.atleast_2d(r_km), np.atleast_2d(v_km_s))

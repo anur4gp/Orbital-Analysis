@@ -47,7 +47,7 @@ def test_rk4_counts_four_evaluations_per_step():
 
 
 def test_rk4_splits_steps_to_land_on_outputs():
-    """h = 0.3 does not divide 1.0; the interval is split into 4 steps of 0.25."""
+    """H = 0.3 does not divide 1.0; the interval is split into 4 steps of 0.25."""
     assert RK4(0.3).integrate(oscillator, Y0, [0.0, 1.0]).nfev == 16
 
 

@@ -36,6 +36,7 @@ class EKF(SequentialFilter):
     def predict(
         self, x: FloatArray, p: FloatArray, t0_s: float, t1_s: float
     ) -> tuple[FloatArray, FloatArray]:
+        """Propagate the state nonlinearly and the covariance through the STM."""
         x1, phi = self.model.propagate_with_stm(x, t0_s, t1_s)
         p1 = phi @ p @ phi.T + self.process_noise(t1_s - t0_s)
         return x1, symmetrize(p1)
@@ -43,6 +44,7 @@ class EKF(SequentialFilter):
     def update(
         self, x: FloatArray, p: FloatArray, obs: Observation
     ) -> tuple[FloatArray, FloatArray, UpdateInfo]:
+        """Condition on one observation, linearising h about the prior mean."""
         m = obs.model
         h = m.jacobian(obs.t_s, x)
         r = m.noise_covariance

@@ -43,6 +43,7 @@ class DOP853:
 
     @property
     def name(self) -> str:
+        """Short label carrying the tolerance, for tables and plots."""
         return f"DOP853 (rtol={self.rtol:g})"
 
     def integrate(
@@ -52,6 +53,7 @@ class DOP853:
         t_eval: ArrayLike,
         constraint: Constraint | None = None,
     ) -> IntegrationResult:
+        """Integrate with adaptive steps, projecting at constraint crossings."""
         t_out = check_times(t_eval)
         y = np.array(y0, dtype=float)
         nprojections = 0

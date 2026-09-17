@@ -15,6 +15,7 @@ import os
 import time
 from collections import deque
 from pathlib import Path
+from typing import Any
 
 import requests
 
@@ -33,8 +34,21 @@ MAX_PER_HOUR = 200
 USER_AGENT = "orbital-analysis/0.1 (conjunction assessment portfolio project)"
 
 
-def load_env(path: Path = ENV_PATH) -> dict[str, str]:
-    """Minimal KEY=VALUE parser, so the project doesn't need python-dotenv."""
+def load_env(path: Path | None = None) -> dict[str, str]:
+    """Minimal KEY=VALUE parser, so the project doesn't need python-dotenv.
+
+    Parameters
+    ----------
+    path
+        File to read. ``None`` means :data:`ENV_PATH`, resolved at call time
+        rather than frozen as a default argument, so it stays overridable.
+
+    Returns
+    -------
+    dict
+        Parsed keys and values; empty when the file is absent.
+    """
+    path = ENV_PATH if path is None else path
     env: dict[str, str] = {}
     if not path.exists():
         return env
@@ -70,14 +84,23 @@ class RateLimiter:
         self.calls: deque[float] = deque()
 
     def acquire(self, verbose: bool = True) -> None:
+        """Block until another call is allowed, then record it.
+
+        Parameters
+        ----------
+        verbose
+            Print each wait, so a long throttle is visible in a script's log.
+        """
         while True:
             now = time.time()
-            while self.calls and now - self.calls[0] > 3600:
+            while self.calls and now - self.calls[0] >= 3600:
                 self.calls.popleft()
-            in_minute = sum(1 for t in self.calls if now - t <= 60)
+            # Window membership is strict: a call exactly 60 s old has left the
+            # last minute. Using >= here would add a needless extra wake-up.
+            recent = [t for t in self.calls if now - t < 60]
             waits = []
-            if in_minute >= self.per_minute:
-                waits.append(60 - (now - [t for t in self.calls if now - t <= 60][0]))
+            if len(recent) >= self.per_minute:
+                waits.append(60 - (now - recent[0]))
             if len(self.calls) >= self.per_hour:
                 waits.append(3600 - (now - self.calls[0]))
             if not waits:
@@ -108,10 +131,11 @@ class SpaceTrack:
         self.login()
         return self
 
-    def __exit__(self, *exc) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.logout()
 
     def login(self) -> None:
+        """Authenticate if not already logged in. Idempotent."""
         if self._logged_in:
             return
         identity, password = credentials()
@@ -128,6 +152,7 @@ class SpaceTrack:
         self._logged_in = True
 
     def logout(self) -> None:
+        """End the session, ignoring network errors on the way out."""
         if self._logged_in:
             try:
                 self.session.get(f"{BASE}/ajaxauth/logout", timeout=self.timeout)
@@ -152,13 +177,28 @@ class SpaceTrack:
         fmt: str = "json",
         max_age_hours: float = 6.0,
         force: bool = False,
-        **predicates,
-    ):
+        **predicates: object,
+    ) -> Any:
         """Run one query, served from cache when a fresh copy exists.
 
-        Predicates are passed as keyword args in Space-Track's URL style, e.g.
-        `query("gp", NORAD_CAT_ID=25544, orderby="EPOCH desc", limit=1)`.
-        Returns parsed JSON for fmt="json", otherwise raw text.
+        Parameters
+        ----------
+        request_class
+            Space-Track request class, e.g. ``gp`` or ``cdm_public``.
+        fmt
+            Response format; ``json`` is parsed, anything else returned raw.
+        max_age_hours
+            Cache freshness window, hours.
+        force
+            Requery even when the cache is fresh.
+        **predicates
+            Query predicates in Space-Track's URL style, e.g.
+            ``query("gp", NORAD_CAT_ID=25544, orderby="EPOCH desc", limit=1)``.
+
+        Returns
+        -------
+        Any
+            Parsed JSON for ``fmt="json"``, otherwise the raw text.
         """
         url = self._build_path(request_class, predicates, fmt)
         digest = hashlib.sha256(url.encode()).hexdigest()[:16]

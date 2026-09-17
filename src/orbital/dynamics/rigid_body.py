@@ -111,6 +111,18 @@ class RigidBody:
         The kinematics integrate the raw quaternion so that norm drift stays
         visible to the constraint check; the force and torque models see a
         normalised copy, so they are never evaluated at a scaled attitude.
+
+        Parameters
+        ----------
+        t_s
+            Time since the reference epoch, s.
+        y
+            Packed 13-element state.
+
+        Returns
+        -------
+        numpy.ndarray
+            Time derivative of the packed state, shape (13,).
         """
         state = RigidBodyState.from_vector(y, t_s)
         mp = self.mass_properties

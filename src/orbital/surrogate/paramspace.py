@@ -133,7 +133,21 @@ def reduce_to_4d(mu: np.ndarray, cov: np.ndarray, hbr: float) -> np.ndarray:
     Rotate into the covariance eigenbasis (the hard-body disk is rotation
     invariant, so the absolute orientation cannot matter), then divide every
     length by the hard-body radius (Pc is scale invariant). What survives is
-    (mu_1/R, mu_2/R, sigma_1/R, sigma_2/R).
+    ``(mu_1/R, mu_2/R, sigma_1/R, sigma_2/R)``.
+
+    Parameters
+    ----------
+    mu
+        Miss vector in the encounter plane, km, shape (2,).
+    cov
+        Projected covariance, km^2, shape (2, 2).
+    hbr
+        Combined hard-body radius, km.
+
+    Returns
+    -------
+    numpy.ndarray
+        The four dimensionless parameters, shape (4,).
     """
     vals, vecs = np.linalg.eigh(cov)
     order = np.argsort(vals)[::-1]

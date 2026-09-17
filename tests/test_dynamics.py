@@ -292,7 +292,8 @@ class TestOrbits:
 
     def test_j2_integrals_and_nodal_regression(self):
         """J2 conserves energy and h_z (axisymmetry) but not the full h vector,
-        and regresses the node at -3/2 n J2 (R/a)^2 cos i."""
+        and regresses the node at -3/2 n J2 (R/a)^2 cos i.
+        """
         inclination = np.radians(50.0)
         gravity = (TwoBodyGravity(), J2Gravity())
         body = RigidBody(POINT, gravity)
@@ -374,7 +375,8 @@ class TestGravityGradient:
 
     def test_minimum_axis_off_vertical_is_unstable(self):
         """Swap I1 and I2: the long axis now lies along-track, and the
-        equilibrium becomes a saddle -- a 0.01 rad offset grows to a tumble."""
+        equilibrium becomes a saddle -- a 0.01 rad offset grows to a tumble.
+        """
         _, pitch, _ = self.pitch_history(InertiaTensor.diagonal(50.0, 20.0, 60.0), 0.01, 5)
         assert np.max(np.abs(pitch)) > 1.0
 

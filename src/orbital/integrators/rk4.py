@@ -34,6 +34,7 @@ class RK4:
 
     @property
     def name(self) -> str:
+        """Short label carrying the step size, for tables and plots."""
         return f"RK4 (h={self.step_s:g} s)"
 
     def integrate(
@@ -43,6 +44,7 @@ class RK4:
         t_eval: ArrayLike,
         constraint: Constraint | None = None,
     ) -> IntegrationResult:
+        """Integrate with fixed steps, landing exactly on every output time."""
         t_out = check_times(t_eval)
         y = np.array(y0, dtype=float)
         out = np.empty((t_out.size, y.size))

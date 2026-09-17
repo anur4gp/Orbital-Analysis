@@ -65,6 +65,18 @@ class UKF(SequentialFilter):
     def sigma_points(self, x: FloatArray, p: FloatArray) -> FloatArray:
         """The ``2n + 1`` sigma points, shape ``(13, 6)``.
 
+        Parameters
+        ----------
+        x
+            Mean state, shape (6,).
+        p
+            Covariance, shape (6, 6).
+
+        Returns
+        -------
+        numpy.ndarray
+            Sigma points, shape (13, 6).
+
         Raises
         ------
         numpy.linalg.LinAlgError
@@ -83,6 +95,7 @@ class UKF(SequentialFilter):
     def predict(
         self, x: FloatArray, p: FloatArray, t0_s: float, t1_s: float
     ) -> tuple[FloatArray, FloatArray]:
+        """Propagate every sigma point, then re-estimate mean and covariance."""
         images = self.model.propagate_many(self.sigma_points(x, p), t0_s, t1_s)
         mean, _, cov = self._moments(images)
         return mean, symmetrize(cov + self.process_noise(t1_s - t0_s))
@@ -90,6 +103,7 @@ class UKF(SequentialFilter):
     def update(
         self, x: FloatArray, p: FloatArray, obs: Observation
     ) -> tuple[FloatArray, FloatArray, UpdateInfo]:
+        """Condition on one observation using sigma points through h."""
         m = obs.model
         chi = self.sigma_points(x, p)
         zs = np.array([m.predict(obs.t_s, c) for c in chi])

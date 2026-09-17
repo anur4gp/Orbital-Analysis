@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Any
 
 import requests
 
@@ -38,11 +39,38 @@ def fetch_gp(
     force: bool = False,
     timeout: float = 30.0,
 ) -> str:
-    """Return raw TLE text for one satellite (`catnr`) or a group (`group`).
+    """Raw TLE text for one satellite or one group.
 
-    Served from cache unless the cached copy is older than `max_age_hours`.
+    Served from cache unless the cached copy is older than ``max_age_hours``.
     If the network call fails but a stale cache exists, the stale copy is
-    returned rather than failing outright.
+    returned rather than failing outright -- CelesTrak throttles hard, and a
+    slightly old element set beats no element set.
+
+    Parameters
+    ----------
+    catnr
+        NORAD catalog number. Mutually exclusive with ``group``.
+    group
+        CelesTrak group name, e.g. ``stations``.
+    max_age_hours
+        Cache freshness window, hours. CelesTrak itself refreshes every 2 h.
+    force
+        Refetch even when the cache is fresh.
+    timeout
+        HTTP timeout, s.
+
+    Returns
+    -------
+    str
+        TLE text as served.
+
+    Raises
+    ------
+    ValueError
+        If neither or both of ``catnr`` and ``group`` are given.
+    RuntimeError
+        If the response carries no TLE data, which CelesTrak returns with
+        HTTP 200 when a query matches nothing or the client is throttled.
     """
     key: str
     value: str | int
@@ -83,13 +111,27 @@ def fetch_gp(
 def fetch_tles(
     catnr: int | None = None,
     group: str | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> list[TLE]:
-    """Fetch and parse. See `fetch_gp` for caching behavior."""
+    """Fetch and parse element sets. See :func:`fetch_gp` for caching.
+
+    Parameters
+    ----------
+    catnr
+        NORAD catalog number. Mutually exclusive with ``group``.
+    group
+        CelesTrak group name.
+    **kwargs
+        Passed to :func:`fetch_gp`.
+
+    Returns
+    -------
+    list of TLE
+    """
     return parse_tle_file(fetch_gp(catnr=catnr, group=group, **kwargs))
 
 
-def fetch_tle(catnr: int, **kwargs) -> TLE:
+def fetch_tle(catnr: int, **kwargs: Any) -> TLE:
     """Fetch a single satellite's TLE by NORAD catalog number."""
     results = fetch_tles(catnr=catnr, **kwargs)
     if len(results) != 1:

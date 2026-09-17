@@ -74,6 +74,16 @@ def multiply(p: ArrayLike, q: ArrayLike) -> FloatArray:
     """Hamilton product ``p ⊗ q``.
 
     Composition order: ``p ⊗ q`` applies ``q`` first, then ``p``.
+
+    Parameters
+    ----------
+    p, q
+        Quaternions, scalar first, shape (4,).
+
+    Returns
+    -------
+    numpy.ndarray
+        The product, shape (4,).
     """
     pw, px, py, pz = as_quaternion(p)
     qw, qx, qy, qz = as_quaternion(q)
@@ -116,7 +126,17 @@ def rotation_angle(q: ArrayLike) -> float:
 def rotate(q: ArrayLike, v_body: ArrayLike) -> FloatArray:
     """Express a BODY-frame vector in the inertial frame: ``q ⊗ v ⊗ q*``.
 
-    ``q`` must be unit norm; units of the result are those of ``v_body``.
+    Parameters
+    ----------
+    q
+        Attitude quaternion, BODY to inertial, unit norm, shape (4,).
+    v_body
+        Vector in BODY axes, shape (3,), any units.
+
+    Returns
+    -------
+    numpy.ndarray
+        The same vector in inertial axes, shape (3,), units of ``v_body``.
     """
     v = np.asarray(v_body, dtype=float)
     qv = np.concatenate([[0.0], v])

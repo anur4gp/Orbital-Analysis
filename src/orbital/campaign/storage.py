@@ -24,7 +24,19 @@ RUNS_NAME = "runs.parquet"
 
 
 def shard_name(shard: int, shards: int) -> str:
-    """File name for one shard's rows."""
+    """File name for one shard's rows.
+
+    Parameters
+    ----------
+    shard
+        Zero-based shard index.
+    shards
+        Total shards; 1 gives the unsharded name.
+
+    Returns
+    -------
+    str
+    """
     return RUNS_NAME if shards == 1 else f"runs.shard{shard}of{shards}.parquet"
 
 
@@ -36,7 +48,26 @@ def write_runs(
     shards: int = 1,
     provenance: Provenance | None = None,
 ) -> Path:
-    """Write ``rows`` as parquet and the config as JSON. Returns the parquet path."""
+    """Write rows as parquet and the config as JSON.
+
+    Parameters
+    ----------
+    rows
+        One row per (design point, filter).
+    config
+        The campaign that produced them.
+    out_dir
+        Destination directory, created if absent.
+    shard, shards
+        Which slice these rows are, deciding the file name.
+    provenance
+        Environment record; a fresh one is captured when omitted.
+
+    Returns
+    -------
+    pathlib.Path
+        Path of the parquet file written.
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / shard_name(shard, shards)

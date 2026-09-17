@@ -34,8 +34,12 @@ jobs:
 
       # The suite is offline by design: no CelesTrak or Space-Track access is
       # needed, so CI never depends on a third-party service being up.
+      # The coverage floor is a ratchet, not a target: it is set just under
+      # the measured value so a drop has to be deliberate.
       - name: Test
-        run: pytest -q --cov=orbital --cov-report=term-missing
+        run: >
+          pytest -q --cov=orbital --cov-report=term-missing
+          --cov-fail-under=93
 
   # The campaign image is the artifact the cloud batch path depends on, so a
   # broken Dockerfile should fail here rather than at submit time. Build only:

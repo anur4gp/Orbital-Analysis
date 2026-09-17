@@ -80,6 +80,7 @@ class PointSettings:
     min_elevation_deg: float
 
     def to_dict(self) -> dict[str, float]:
+        """Settings keyed by parameter name, for the results table."""
         return {p.name: getattr(self, p.name) for p in PARAMETERS}
 
 

@@ -17,7 +17,15 @@ class TorqueModel(Protocol):
     """External torque about the centre of mass."""
 
     def torque(self, state: RigidBodyState, mass_properties: MassProperties) -> FloatArray:
-        """Torque, N m, BODY axes."""
+        """Torque, N m, BODY axes.
+
+        Parameters
+        ----------
+        state
+            Current 6-DOF state.
+        mass_properties
+            Mass and inertia of the body.
+        """
         ...
 
 
@@ -41,6 +49,7 @@ class GravityGradientTorque:
     mu_km3_s2: float = MU_EARTH_KM3_S2
 
     def torque(self, state: RigidBodyState, mass_properties: MassProperties) -> FloatArray:
+        """Gravity-gradient torque, N m, BODY axes."""
         r = state.r_km
         rn = float(np.linalg.norm(r))
         u = to_dcm(state.q).T @ (r / rn)

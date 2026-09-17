@@ -27,6 +27,10 @@ dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.11"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# PEP 561: ship the marker so an installing consumer sees the annotations.
+[tool.setuptools.package-data]
+orbital = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
@@ -40,15 +44,40 @@ line-length = 96
 src = ["src", "scripts", "tests", "tools"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "NPY"]
-ignore = ["E501"]
+# D = pydocstyle: every public module, class and function carries a
+# docstring, in numpy style. Enforced rather than asserted in a README.
+select = ["E", "F", "W", "I", "UP", "B", "NPY", "D"]
+ignore = [
+    "E501",
+    "D105",  # magic methods: __repr__ and friends need no prose
+    "D107",  # __init__: the class docstring documents construction
+    "D203",  # incompatible with D211 (no blank line before a class docstring)
+    "D401",  # imperative mood: reads badly for property-style one-liners
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
 # The reference C++ wrapper and its vendored test are kept verbatim.
 "reference/*" = ["ALL"]
+# Test and script docstrings are explanatory notes, not API reference: a
+# wrapped sentence reads better there than a forced one-line summary, so the
+# numpy summary rules (D205, D400, D415) are relaxed outside the package.
+# Test names carry the description, hence no D1xx requirement either.
+"tests/*" = ["D100", "D101", "D102", "D103", "D104", "D106", "D205", "D400", "D415"]
+"scripts/*" = ["D103", "D205", "D400", "D415"]
+"tools/*" = ["D100", "D101", "D102", "D103", "D104", "D205", "D400", "D415"]
 
 [tool.mypy]
 python_version = "3.12"
 files = ["src/orbital"]
 ignore_missing_imports = true
 warn_unused_ignores = true
+# Every function in the package is annotated; these flags keep it that way
+# instead of leaving it to a reviewer to notice.
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_redundant_casts = true
+no_implicit_optional = true
+warn_unreachable = true

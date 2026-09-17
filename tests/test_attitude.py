@@ -34,7 +34,7 @@ class TestQuaternionAlgebra:
         assert np.allclose(left, right, atol=1e-14)
 
     def test_product_matches_dcm_product(self, rng):
-        """p ⊗ q applies q first, so its DCM is C(p) C(q)."""
+        """P ⊗ q applies q first, so its DCM is C(p) C(q)."""
         qs = random_quaternions(rng, 40)
         for p, q in zip(qs[::2], qs[1::2], strict=True):
             assert np.allclose(dcm.to_dcm(quat.multiply(p, q)), dcm.to_dcm(p) @ dcm.to_dcm(q))
@@ -81,7 +81,7 @@ class TestKinematics:
         assert np.allclose(quat.kinematics(q0, omega), numeric, atol=1e-10)
 
     def test_preserves_norm_to_first_order(self, rng):
-        """q . dq/dt = 0, so the exact flow keeps |q| constant."""
+        """Q . dq/dt = 0, so the exact flow keeps |q| constant."""
         for q in random_quaternions(rng, 20):
             assert np.dot(q, quat.kinematics(q, rng.normal(size=3))) == pytest.approx(0, abs=1e-15)
 

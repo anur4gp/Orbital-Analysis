@@ -13,6 +13,46 @@ stack built on top of it.
 A short report covering the conjunction work, including its negative
 results, is in [`writeup/report.tex`](writeup/report.tex).
 
+## Headline results
+
+Every number below is produced by a script in this repository, and each
+section further down says which one and how to rerun it.
+
+| Result | Number | Where |
+|---|---|---|
+| Surrogate vs Monte Carlo at matched accuracy (~7% in Pc) over a 337,789-pair screen | **~5,300x cheaper**, break-even at 64 conjunctions | [report](writeup/report.tex), fig3 |
+| Triage: catalog discarded at 100% recall of high-risk events | **99.1%** (keeps 0.92%) vs 1.41% for an analyst miss-distance cut, which also drops to 97.2% recall when split by object | [Phase 4 results](writeup/phase4_results.tex) |
+| 6-DOF propagator vs closed-form torque-free precession | **2e-11 rad** attitude error; energy and angular momentum to 2e-13 | `scripts/validate_6dof.py` |
+| EKF vs UKF from TLE-grade initial uncertainty (1 km) | EKF **NEES 1019** (inconsistent), UKF 8.8; 4x worse final error | `scripts/run_estimation.py` |
+| Where each filter stays consistent, over a 6-parameter sweep | EKF consistent at **28%** of design points, UKF at **72%** | `scripts/run_campaign.py` |
+
+Three results here are negative or self-limiting, and are reported as
+prominently as the positive ones: a space-filling design **cannot** replace
+Monte Carlo for the rare-event integral itself (only for a surrogate over
+encounter parameters); gradient boosting **fails** at triage where logistic
+regression succeeds; and MaxPro's 2-3x advantage on its own design criterion
+**does not** become a 2-3x accuracy advantage.
+
+## Reading this repository cold
+
+- **The physics conventions** are in one file:
+  [`conventions.py`](src/orbital/conventions.py). Frames, time systems and
+  units are stated once, including why TEME and J2000 ECI are kept apart.
+- **The two hardest results to get right** were the EKF/UKF comparison
+  ("Orbit determination" below) and the dimensional reduction that makes the
+  surrogate tractable ("Why the surrogate is 4-D" in
+  [`writeup/report.tex`](writeup/report.tex)). Both include the diagnostic
+  that located the failure, not just the conclusion.
+- **Verification style:** assertions are physics identities wherever one
+  exists -- conservation laws, symplecticity, closed-form solutions,
+  chi-square consistency bands, invariances verified numerically -- rather
+  than comparisons against stored output. `tests/` reads as the argument for
+  why the code is right.
+- **Mistakes are recorded**, in commit messages and in `CLAUDE.md`: a test
+  that passed for the wrong reason, a wrong first hypothesis about the EKF,
+  thresholds set in-sample, a figure whose reference point made its own
+  message invisible.
+
 ## Layout
 
 ```
@@ -269,16 +309,48 @@ python scripts/make_figures.py      # report figures
 Scripts that touch CelesTrak or Space-Track cache locally; both services
 rate-limit aggressively, so repeated runs are served from `data/`.
 
-## Testing
+## Testing and code standards
 
 The suite is deliberately offline and deterministic, so CI never depends on a
-third-party service. Assertions are physics-based where possible -- rotation
-preserves trace, determinant and eigenvalues; probability scales as the square
-of the hard-body radius; two independent estimators agree within the sampler's
-own error bars -- rather than comparisons against stored output.
+third-party service being up. Network clients are tested against
+monkeypatched transports, and the rate limiter against a fake clock.
+
+Assertions are physics-based wherever an identity exists, rather than
+comparisons against stored output:
+
+- rotation preserves trace, determinant and eigenvalues; the state transition
+  matrix is symplectic (`Phi^T J Phi = J`);
+- torque-free motion conserves energy and the angular-momentum vector, and
+  matches the closed-form precession solution;
+- Pc scales as the square of the hard-body radius, and two independent
+  estimators agree within the sampler's own error bars;
+- J2 regresses the node at the analytic secular rate, and gravity gradient
+  gives the analytic libration frequency;
+- filter consistency is judged by chi-square NEES/NIS bands, not by accuracy.
+
+Where a physics identity does not exist, the test states the bound's origin
+(an integrator tolerance, a quadrature resolution) rather than freezing a
+number that happened to come out.
 
 ```bash
-pytest -q
-ruff check .
-mypy
+pytest -q                  # offline suite; -m "not slow" skips the long ones
+ruff check .               # lint + import order + numpy-style docstrings
+mypy                       # strict: every function in the package is annotated
 ```
+
+**Enforced, not asserted.** `ruff` runs pydocstyle with the numpy convention,
+so a public module, class or function without a docstring fails the build.
+`mypy` runs with `disallow_untyped_defs`, so an unannotated function fails
+too. CI runs both on every push, on Python 3.11 and 3.12, plus a coverage
+floor and a build of the campaign container.
+
+Current state: **389 tests, 96% statement coverage** of `src/orbital`, with
+the floor set at 93% so a drop has to be deliberate. The suite runs in about
+3.5 minutes; `-m "not slow"` covers 91% in 1.5 minutes.
+
+**Docstring policy.** Every public function carries a summary. Parameters and
+Returns sections are required wherever arguments carry units, frames or
+non-obvious semantics -- which is nearly all of the physics API. They are
+omitted where a one-line summary plus the type annotation already says
+everything (`multiply(p, q)`), and implementations of a protocol inherit the
+protocol's documentation rather than repeating it.

@@ -44,14 +44,17 @@ class RangeRangeRate:
 
     @property
     def name(self) -> str:
+        """Label used in histories and plots, naming the site."""
         return f"range/range-rate @ {self.station.name}"
 
     @property
     def dim(self) -> int:
+        """Two components: range and range-rate."""
         return 2
 
     @property
     def noise_covariance(self) -> FloatArray:
+        """Diagonal noise covariance, km^2 and (km/s)^2."""
         return np.diag([self.sigma_range_km**2, self.sigma_range_rate_km_s**2])
 
     def _geometry(self, t_s: float, x: FloatArray) -> tuple[FloatArray, FloatArray, float]:
@@ -60,10 +63,12 @@ class RangeRangeRate:
         return rho_vec, v_rel, float(np.linalg.norm(rho_vec))
 
     def predict(self, t_s: float, x: FloatArray) -> FloatArray:
+        """Predicted ``[range (km), range-rate (km/s)]``."""
         rho_vec, v_rel, rho = self._geometry(t_s, x)
         return np.array([rho, float(rho_vec @ v_rel) / rho])
 
     def jacobian(self, t_s: float, x: FloatArray) -> FloatArray:
+        """Analytic dh/dx, shape (2, 6). See the module docstring for the partials."""
         rho_vec, v_rel, rho = self._geometry(t_s, x)
         u = rho_vec / rho
         rho_dot = float(u @ v_rel)
@@ -74,7 +79,9 @@ class RangeRangeRate:
         return h
 
     def is_available(self, t_s: float, x: FloatArray) -> bool:
+        """Whether the object is above the site's elevation mask."""
         return self.station.is_visible(t_s, x[:3])
 
     def residual(self, z: FloatArray, z_pred: FloatArray) -> FloatArray:
+        """Innovation ``z - z_pred``; neither component wraps."""
         return np.asarray(z, dtype=float) - z_pred

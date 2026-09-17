@@ -25,14 +25,38 @@ DEFAULT_HBR_M = 1.0
 
 
 def hard_body_radius_km(rcs1: str, rcs2: str) -> float:
-    """Combined hard-body radius in km, from the two RCS size classes."""
+    """Combined hard-body radius from the two RCS size classes.
+
+    Parameters
+    ----------
+    rcs1, rcs2
+        Space-Track RCS size class of each object: ``SMALL``, ``MEDIUM`` or
+        ``LARGE``. Unrecognised or empty values fall back to
+        :data:`DEFAULT_HBR_M`.
+
+    Returns
+    -------
+    float
+        Sum of the two equivalent-sphere radii, km.
+    """
     r1 = HBR_BY_RCS_M.get((rcs1 or "").upper(), DEFAULT_HBR_M)
     r2 = HBR_BY_RCS_M.get((rcs2 or "").upper(), DEFAULT_HBR_M)
     return (r1 + r2) / 1000.0
 
 
 def encounter_plane_basis(v_rel: np.ndarray) -> np.ndarray:
-    """Orthonormal 3x2 basis for the plane perpendicular to relative velocity."""
+    """Orthonormal basis for the plane perpendicular to relative velocity.
+
+    Parameters
+    ----------
+    v_rel
+        Relative velocity, km/s, inertial frame, shape (3,).
+
+    Returns
+    -------
+    numpy.ndarray
+        Shape (3, 2); its columns span the encounter plane.
+    """
     n = np.asarray(v_rel, dtype=float)
     n = n / np.linalg.norm(n)
     # Any vector not parallel to n seeds the first in-plane direction.
@@ -45,11 +69,26 @@ def encounter_plane_basis(v_rel: np.ndarray) -> np.ndarray:
     return np.column_stack([e1, e2])
 
 
-def project_encounter(dr: np.ndarray, v_rel: np.ndarray, cov: np.ndarray):
+def project_encounter(
+    dr: np.ndarray, v_rel: np.ndarray, cov: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """Project relative position and covariance onto the encounter plane.
 
-    Returns (mu_2d, cov_2d): the miss vector and combined covariance as seen
-    looking down the relative-velocity axis.
+    Parameters
+    ----------
+    dr
+        Relative position at closest approach, km, shape (3,).
+    v_rel
+        Relative velocity, km/s, shape (3,).
+    cov
+        Combined relative-position covariance, km^2, shape (3, 3).
+
+    Returns
+    -------
+    mu_2d : numpy.ndarray
+        Miss vector in the encounter plane, km, shape (2,).
+    cov_2d : numpy.ndarray
+        Projected covariance, km^2, shape (2, 2).
     """
     b = encounter_plane_basis(v_rel)
     return b.T @ np.asarray(dr, dtype=float), b.T @ cov @ b
@@ -66,6 +105,7 @@ class PcResult:
 
     @property
     def relative_error(self) -> float:
+        """Standard error divided by the estimate; NaN when no hits were drawn."""
         return float("inf") if self.pc == 0 else self.stderr / self.pc
 
     def __str__(self) -> str:
@@ -82,8 +122,29 @@ def pc_monte_carlo(
 ) -> PcResult:
     """Brute-force Pc: fraction of sampled encounters inside the hard-body disk.
 
-    Draws are batched so the memory footprint stays flat as n_draws grows into
-    the tens of millions, which is where a Pc of ~1e-4 needs to be resolved.
+    Draws are batched so the memory footprint stays flat as ``n_draws`` grows
+    into the tens of millions, which is where a Pc of ~1e-4 needs to be
+    resolved.
+
+    Parameters
+    ----------
+    mu_2d
+        Miss vector in the encounter plane, km, shape (2,).
+    cov_2d
+        Projected covariance, km^2, shape (2, 2).
+    hbr_km
+        Combined hard-body radius, km.
+    n_draws
+        Total samples to draw.
+    rng
+        Random generator; seed it for reproducibility.
+    batch
+        Samples per batch, bounding peak memory.
+
+    Returns
+    -------
+    PcResult
+        Estimate, binomial standard error, and the draw and hit counts.
     """
     try:
         factor = np.linalg.cholesky(cov_2d)
@@ -111,6 +172,23 @@ def pc_analytic(mu_2d: np.ndarray, cov_2d: np.ndarray, hbr_km: float,
 
     Independent of the Monte Carlo, so disagreement between the two points at
     a bug in one of them rather than at sampling noise.
+
+    Parameters
+    ----------
+    mu_2d
+        Miss vector in the encounter plane, km, shape (2,).
+    cov_2d
+        Projected covariance, km^2, shape (2, 2).
+    hbr_km
+        Combined hard-body radius, km.
+    n_r, n_theta
+        Minimum radial and angular quadrature steps. The radial count is
+        raised automatically when the covariance is tight (see below).
+
+    Returns
+    -------
+    float
+        Collision probability, dimensionless.
 
     The radial resolution adapts to the covariance: a fixed grid whose step
     exceeds the smallest standard deviation would step straight over the
@@ -149,6 +227,20 @@ def pc_small_disk(mu_2d: np.ndarray, cov_2d: np.ndarray, hbr_km: float) -> float
 
     Here HBR is metres and the covariance is kilometres, so the Gaussian is
     essentially flat across the disk and this is accurate to many digits.
+
+    Parameters
+    ----------
+    mu_2d
+        Miss vector in the encounter plane, km, shape (2,).
+    cov_2d
+        Projected covariance, km^2, shape (2, 2).
+    hbr_km
+        Combined hard-body radius, km.
+
+    Returns
+    -------
+    float
+        Collision probability, dimensionless.
     """
     inv = np.linalg.inv(cov_2d)
     norm = 1.0 / (2.0 * np.pi * np.sqrt(np.linalg.det(cov_2d)))
@@ -164,6 +256,20 @@ def log10_pc_small_disk(mu_2d: np.ndarray, cov_2d: np.ndarray, hbr_km: float) ->
     ~1e-350. Working in logs keeps those labels finite and ordered, which
     matters because they are the negative class of the Phase 4 dataset.
     Valid in the HBR << sigma regime, which every real conjunction satisfies.
+
+    Parameters
+    ----------
+    mu_2d
+        Miss vector in the encounter plane, km, shape (2,).
+    cov_2d
+        Projected covariance, km^2, shape (2, 2).
+    hbr_km
+        Combined hard-body radius, km.
+
+    Returns
+    -------
+    float
+        Base-10 logarithm of the collision probability.
     """
     inv = np.linalg.inv(cov_2d)
     quad = float(mu_2d @ inv @ mu_2d)

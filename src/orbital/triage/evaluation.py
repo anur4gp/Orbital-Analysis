@@ -15,6 +15,7 @@ comparison directly.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 import numpy as np
@@ -41,9 +42,23 @@ def full_recall_operating_point(scores: np.ndarray, labels: np.ndarray,
                                 name: str) -> TriageResult:
     """Smallest keep-set that still contains every positive.
 
-    `scores` should rank riskier conjunctions higher. The threshold is placed
-    just below the lowest-scoring true positive, which is the best any
-    threshold on this score can do at 100% recall.
+    The threshold is placed just below the lowest-scoring true positive,
+    which is the best any threshold on this score can do at 100% recall.
+
+    Parameters
+    ----------
+    scores
+        Risk scores, higher meaning riskier, shape (n,).
+    labels
+        1 for a positive (high-risk) conjunction, 0 otherwise, shape (n,).
+    name
+        Label for the method, carried into the result.
+
+    Returns
+    -------
+    TriageResult
+        Kept fraction, recall and precision at that threshold. With no
+        positives, everything is kept and recall is NaN.
     """
     positives = labels.astype(bool)
     n_pos = int(positives.sum())
@@ -62,13 +77,27 @@ def full_recall_operating_point(scores: np.ndarray, labels: np.ndarray,
     )
 
 
-def grouped_split(groups: np.ndarray, test_groups) -> tuple[np.ndarray, np.ndarray]:
+def grouped_split(
+    groups: np.ndarray, test_groups: Iterable[object]
+) -> tuple[np.ndarray, np.ndarray]:
     """Split by catalog/day group rather than at random.
 
     Conjunctions from the same debris family within the same window share
-    objects and geometry, so a random split leaks: the same pair can appear in
-    both halves at slightly different times. Splitting by group is the honest
-    test of whether the model generalizes.
+    objects and geometry, so a random split leaks: the same pair can appear
+    in both halves at slightly different times. Splitting by group is the
+    honest test of whether the model generalizes.
+
+    Parameters
+    ----------
+    groups
+        Group label per row, shape (n,).
+    test_groups
+        Labels held out for testing.
+
+    Returns
+    -------
+    train, test : numpy.ndarray
+        Complementary boolean masks, shape (n,).
     """
-    test = np.isin(groups, list(test_groups))
+    test = np.isin(groups, np.asarray(list(test_groups), dtype=groups.dtype))
     return ~test, test

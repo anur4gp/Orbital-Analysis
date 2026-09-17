@@ -22,6 +22,7 @@ class PropagationError(RuntimeError):
 
 
 def satrec_from_tle(t: TLE) -> Satrec:
+    """Build an SGP4 ``Satrec`` from a parsed element set."""
     return Satrec.twoline2rv(t.line1, t.line2)
 
 
@@ -34,7 +35,25 @@ def _to_jd(when: datetime) -> tuple[float, float]:
 
 
 def propagate(sat: Satrec, when: datetime) -> tuple[np.ndarray, np.ndarray]:
-    """State vector at a single time. Raises PropagationError if error != 0."""
+    """State vector at a single time.
+
+    Parameters
+    ----------
+    sat
+        SGP4 propagator.
+    when
+        Epoch; naive datetimes are assumed UTC.
+
+    Returns
+    -------
+    r, v : numpy.ndarray
+        Position (km) and velocity (km/s) in TEME, shape (3,).
+
+    Raises
+    ------
+    PropagationError
+        If SGP4 returns a nonzero error code.
+    """
     jd, fr = _to_jd(when)
     error, r, v = sat.sgp4(jd, fr)
     if error != 0:
@@ -51,9 +70,28 @@ def propagate_series(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Propagate over a time grid.
 
-    Returns (times, positions, velocities, errors) with positions/velocities
-    shaped (n, 3). With strict=True any nonzero error code raises; otherwise
-    the error codes are returned for the caller to mask on.
+    Parameters
+    ----------
+    sat
+        SGP4 propagator.
+    start
+        First epoch; naive datetimes are assumed UTC.
+    duration_minutes
+        Length of the grid, minutes. The end point is included.
+    step_minutes
+        Grid spacing, minutes.
+    strict
+        Raise on any nonzero SGP4 error code. With False the codes are
+        returned for the caller to mask on.
+
+    Returns
+    -------
+    times : numpy.ndarray
+        Datetimes, shape (n,).
+    r, v : numpy.ndarray
+        Positions (km) and velocities (km/s) in TEME, shape (n, 3).
+    errors : numpy.ndarray
+        SGP4 error code per sample.
     """
     offsets = np.arange(0.0, duration_minutes + 0.5 * step_minutes, step_minutes)
     times = np.array([start + timedelta(minutes=float(m)) for m in offsets])
@@ -75,9 +113,11 @@ def radius_km(r: np.ndarray) -> np.ndarray:
 
 
 def altitude_km(r: np.ndarray) -> np.ndarray:
-    """Altitude above a *spherical* Earth. Approximate by up to ~21 km at the
-    poles because it ignores oblateness -- fine for sanity checks, not for
-    geolocation."""
+    """Altitude above a *spherical* Earth, km.
+
+    Approximate by up to ~21 km at the poles because it ignores oblateness --
+    fine for sanity checks, not for geolocation.
+    """
     return radius_km(r) - R_EARTH_EQ
 
 
@@ -87,7 +127,7 @@ def period_minutes(sat: Satrec) -> float:
 
 
 def semi_major_axis_km(sat: Satrec) -> float:
-    """a = (mu / n^2)^(1/3), with n converted from rad/min to rad/s."""
+    """A = (mu / n^2)^(1/3), with n converted from rad/min to rad/s."""
     n = sat.no_kozai / 60.0
     return (MU_EARTH / n**2) ** (1.0 / 3.0)
 

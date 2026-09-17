@@ -111,13 +111,49 @@ class SequentialFilter(ABC):
     def predict(
         self, x: FloatArray, p: FloatArray, t0_s: float, t1_s: float
     ) -> tuple[FloatArray, FloatArray]:
-        """Propagate mean and covariance from ``t0_s`` to ``t1_s``."""
+        """Propagate mean and covariance.
+
+        Parameters
+        ----------
+        x
+            Mean state ``[r (km), v (km/s)]``, shape (6,).
+        p
+            Covariance, km^2 and (km/s)^2 blocks, shape (6, 6).
+        t0_s, t1_s
+            Start and end times, s since the reference epoch.
+
+        Returns
+        -------
+        x1 : numpy.ndarray
+            Predicted mean, shape (6,).
+        p1 : numpy.ndarray
+            Predicted covariance, shape (6, 6).
+        """
 
     @abstractmethod
     def update(
         self, x: FloatArray, p: FloatArray, obs: Observation
     ) -> tuple[FloatArray, FloatArray, UpdateInfo]:
-        """Condition on one observation taken at the current time."""
+        """Condition on one observation taken at the current time.
+
+        Parameters
+        ----------
+        x
+            Prior mean, shape (6,).
+        p
+            Prior covariance, shape (6, 6).
+        obs
+            The observation, carrying its own measurement model.
+
+        Returns
+        -------
+        x_post : numpy.ndarray
+            Posterior mean, shape (6,).
+        p_post : numpy.ndarray
+            Posterior covariance, shape (6, 6).
+        info : UpdateInfo
+            Innovation and its covariance, for the NIS test.
+        """
 
     def run(
         self,

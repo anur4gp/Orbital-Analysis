@@ -32,17 +32,69 @@ class MeasurementModel(Protocol):
         ...
 
     def predict(self, t_s: float, x: FloatArray) -> FloatArray:
-        """Noise-free measurement h(x) at ``t_s``."""
+        """Noise-free measurement ``h(x)``.
+
+        Parameters
+        ----------
+        t_s
+            Time since the reference epoch, s. Sensors fixed to the rotating
+            Earth need it to place themselves.
+        x
+            Orbit state ``[r (km), v (km/s)]`` in ECI_J2000, shape (6,).
+
+        Returns
+        -------
+        numpy.ndarray
+            Predicted measurement, shape (dim,).
+        """
         ...
 
     def jacobian(self, t_s: float, x: FloatArray) -> FloatArray:
-        """dh/dx at ``x``, shape ``(dim, 6)``."""
+        """Measurement Jacobian ``dh/dx``.
+
+        Parameters
+        ----------
+        t_s
+            Time since the reference epoch, s.
+        x
+            Linearisation point, shape (6,).
+
+        Returns
+        -------
+        numpy.ndarray
+            Shape (dim, 6).
+        """
         ...
 
     def is_available(self, t_s: float, x: FloatArray) -> bool:
-        """Whether the sensor can observe state ``x`` at ``t_s`` (e.g. above the mask)."""
+        """Whether the sensor can observe this state, e.g. above its mask.
+
+        Parameters
+        ----------
+        t_s
+            Time since the reference epoch, s.
+        x
+            True state being observed, shape (6,).
+
+        Returns
+        -------
+        bool
+        """
         ...
 
     def residual(self, z: FloatArray, z_pred: FloatArray) -> FloatArray:
-        """Innovation ``z - z_pred``. Override for angle wrapping."""
+        """Innovation ``z - z_pred``. Override for angle wrapping.
+
+        Parameters
+        ----------
+        z
+            Observed measurement, shape (dim,).
+        z_pred
+            Predicted measurement, shape (dim,).
+
+        Returns
+        -------
+        numpy.ndarray
+            Innovation, shape (dim,).
+        """
         ...

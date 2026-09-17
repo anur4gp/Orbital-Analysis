@@ -514,6 +514,52 @@ so a script without an `if __name__ == "__main__"` guard forks itself
 recursively (a stdin heredoc produced 512 KB of runaway output). Documented
 in the runner docstring; scripts have the guard.
 
+### New Phase 4 status: engineering-quality audit done
+
+Phase 4 was an audit pass, since Phase 0 already delivered pytest/CI/types.
+Measured first, then closed the gaps, then made the standards enforceable.
+
+**Coverage 65% -> 93%.** Ten modules were at 0%: propagation, celestrak,
+spacetrack, screening, events, cases, gp, triage features/evaluation,
+plotting. New test files: `test_propagation.py`, `test_screening.py`,
+`test_data_fetch.py`, `test_events.py`, `test_cases.py`,
+`test_surrogate_gp.py`, `test_triage.py`, `test_plotting.py`,
+`test_paths_cli.py`. All offline: network clients use monkeypatched
+transports, the rate limiter a fake clock, Space-Track a stub client.
+CI now enforces `--cov-fail-under=90`.
+
+**Types.** 10 unannotated public functions fixed; mypy now runs with
+`disallow_untyped_defs`, `disallow_incomplete_defs`, `no_implicit_optional`,
+`warn_unreachable`, so regressions fail the build.
+
+**Docstrings.** ruff `D` rules with `convention = "numpy"` enabled. 46
+missing docstrings written; ~65 Parameters/Returns sections added with units.
+Stated policy (in the README): Parameters required where arguments carry
+units/frames/non-obvious semantics; omitted for self-evident helpers;
+protocol implementations inherit the protocol's docs. D205/D400 relaxed for
+tests and scripts, where a wrapped explanatory note reads better than a
+forced one-line summary.
+
+**Three real bugs found by writing the tests:**
+1. `load_env(path=ENV_PATH)` froze the .env path as a default argument, so it
+   could not be redirected (tests or otherwise). Now resolved at call time.
+2. `RateLimiter` treated the sliding window as inclusive, so after waiting
+   60 s it woke, found the oldest call exactly 60 s old, and slept another
+   0.1 s. Window membership is now strict.
+3. A docstring insert landed in `TorqueModel.torque` (protocol) which already
+   had one, producing two string statements and a mypy protocol-body error.
+
+**Wrong test premises caught (mine, not the code's):** the GP's 1e-10 jitter
+makes duplicate points survive Cholesky, so the "singular kernel" test was
+testing nothing -- it now checks the jitter works, and a separate test uses
+50 duplicate points at amplitude e^20 to reach the 1e12 penalty branch.
+Osculating inclination oscillates 0.02 deg under J2, so "inclination is
+conserved" had to become "no secular drift" (means of the two halves agree).
+
+README restructured for a reader evaluating the repo cold: headline results
+table with the script that produces each number, a "reading this cold"
+section, and the verification philosophy stated explicitly.
+
 ### Phase 1 steps, in order (after setup above is done)
 
 1. Understand the TLE format (epoch, catalog number, six orbital elements)

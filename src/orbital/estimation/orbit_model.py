@@ -57,8 +57,21 @@ class OrbitModel:
     def accelerations(self, t_s: float, r_km: FloatArray) -> FloatArray:
         """Total acceleration, km/s^2, for positions of shape ``(k, 3)``.
 
-        Vectorised when every force model depends only on position; otherwise
-        each position is evaluated through the general force interface.
+        Vectorised when every force model depends only on position;
+        otherwise each position is evaluated through the general force
+        interface.
+
+        Parameters
+        ----------
+        t_s
+            Time since the reference epoch, s.
+        r_km
+            Positions, km, ECI_J2000, shape (k, 3) or (3,).
+
+        Returns
+        -------
+        numpy.ndarray
+            Accelerations, km/s^2, shape (k, 3).
         """
         r = np.atleast_2d(r_km)
         if all(isinstance(f, PositionOnlyForce) for f in self.forces):
@@ -74,22 +87,74 @@ class OrbitModel:
         return out
 
     def acceleration(self, t_s: float, r_km: FloatArray) -> FloatArray:
-        """Total acceleration at one position, km/s^2."""
+        """Total acceleration at one position.
+
+        Parameters
+        ----------
+        t_s
+            Time since the reference epoch, s.
+        r_km
+            Position, km, ECI_J2000, shape (3,).
+
+        Returns
+        -------
+        numpy.ndarray
+            Acceleration, km/s^2, shape (3,).
+        """
         return self.accelerations(t_s, r_km)[0]
 
     def acceleration_gradient(self, t_s: float, r_km: FloatArray) -> FloatArray:
-        """da/dr, 1/s^2, by central differences (one batched evaluation)."""
+        """``da/dr`` by central differences, in one batched evaluation.
+
+        Parameters
+        ----------
+        t_s
+            Time since the reference epoch, s.
+        r_km
+            Position, km, shape (3,).
+
+        Returns
+        -------
+        numpy.ndarray
+            Gradient, 1/s^2, shape (3, 3).
+        """
         h = JACOBIAN_STEP_KM
         stencil = np.vstack([r_km + h * np.eye(3), r_km - h * np.eye(3)])
         a = self.accelerations(t_s, stencil)
         return ((a[:3] - a[3:]) / (2 * h)).T
 
     def derivative(self, t_s: float, x: FloatArray) -> FloatArray:
-        """dx/dt for one 6-element state."""
+        """Right-hand side ``dx/dt`` for one 6-element state.
+
+        Parameters
+        ----------
+        t_s
+            Time since the reference epoch, s.
+        x
+            State ``[r (km), v (km/s)]``, shape (6,).
+
+        Returns
+        -------
+        numpy.ndarray
+            Derivative, shape (6,), in km/s and km/s^2.
+        """
         return np.concatenate([x[3:6], self.acceleration(t_s, x[:3])])
 
     def propagate(self, x: FloatArray, t0_s: float, t1_s: float) -> FloatArray:
-        """State at ``t1_s``."""
+        """Propagate one state.
+
+        Parameters
+        ----------
+        x
+            State at ``t0_s``, shape (6,).
+        t0_s, t1_s
+            Start and end times, s since the reference epoch.
+
+        Returns
+        -------
+        numpy.ndarray
+            State at ``t1_s``, shape (6,).
+        """
         if t1_s == t0_s:
             return np.array(x, dtype=float)
         return self.integrator.integrate(self.derivative, x, [t0_s, t1_s]).y[-1]
@@ -100,6 +165,18 @@ class OrbitModel:
         One integration with shared step control is much cheaper than ``k``
         separate calls, and the steps are at least as small as the most
         demanding member needs.
+
+        Parameters
+        ----------
+        xs
+            States at ``t0_s``, shape (k, 6).
+        t0_s, t1_s
+            Start and end times, s since the reference epoch.
+
+        Returns
+        -------
+        numpy.ndarray
+            States at ``t1_s``, shape (k, 6).
         """
         xs = np.asarray(xs, dtype=float)
         if t1_s == t0_s:
@@ -115,7 +192,22 @@ class OrbitModel:
     def propagate_with_stm(
         self, x: FloatArray, t0_s: float, t1_s: float
     ) -> tuple[FloatArray, FloatArray]:
-        """State and 6x6 state transition matrix from ``t0_s`` to ``t1_s``."""
+        """Propagate a state together with its state transition matrix.
+
+        Parameters
+        ----------
+        x
+            State at ``t0_s``, shape (6,).
+        t0_s, t1_s
+            Start and end times, s since the reference epoch.
+
+        Returns
+        -------
+        x1 : numpy.ndarray
+            State at ``t1_s``, shape (6,).
+        phi : numpy.ndarray
+            State transition matrix, shape (6, 6).
+        """
         if t1_s == t0_s:
             return np.array(x, dtype=float), np.eye(6)
 

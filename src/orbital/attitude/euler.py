@@ -35,7 +35,18 @@ _X, _Y, _Z = np.eye(3)
 
 
 def from_euler_321(yaw_rad: float, pitch_rad: float, roll_rad: float) -> FloatArray:
-    """Quaternion (BODY -> inertial) from 3-2-1 angles, rad."""
+    """Quaternion (BODY to inertial) from 3-2-1 angles.
+
+    Parameters
+    ----------
+    yaw_rad, pitch_rad, roll_rad
+        Intrinsic rotations about z, then y, then x, rad.
+
+    Returns
+    -------
+    numpy.ndarray
+        Unit quaternion, scalar first, shape (4,).
+    """
     return multiply(
         multiply(from_axis_angle(_Z, yaw_rad), from_axis_angle(_Y, pitch_rad)),
         from_axis_angle(_X, roll_rad),
@@ -59,7 +70,18 @@ def to_euler_321(q: ArrayLike) -> FloatArray:
 
 
 def from_euler_313(phi_rad: float, theta_rad: float, psi_rad: float) -> FloatArray:
-    """Quaternion (BODY -> inertial) from 3-1-3 angles, rad."""
+    """Quaternion (BODY to inertial) from 3-1-3 angles.
+
+    Parameters
+    ----------
+    phi_rad, theta_rad, psi_rad
+        Precession about z, nutation about x, spin about z, rad.
+
+    Returns
+    -------
+    numpy.ndarray
+        Unit quaternion, scalar first, shape (4,).
+    """
     return multiply(
         multiply(from_axis_angle(_Z, phi_rad), from_axis_angle(_X, theta_rad)),
         from_axis_angle(_Z, psi_rad),
@@ -83,7 +105,18 @@ def to_euler_313(q: ArrayLike) -> FloatArray:
 
 
 def dcm_from_euler_321(yaw_rad: float, pitch_rad: float, roll_rad: float) -> FloatArray:
-    """DCM (BODY -> inertial) from 3-2-1 angles, rad. Convenience wrapper."""
+    """DCM (BODY to inertial) from 3-2-1 angles. Convenience wrapper.
+
+    Parameters
+    ----------
+    yaw_rad, pitch_rad, roll_rad
+        Intrinsic rotations about z, then y, then x, rad.
+
+    Returns
+    -------
+    numpy.ndarray
+        Rotation matrix, shape (3, 3).
+    """
     return to_dcm(from_euler_321(yaw_rad, pitch_rad, roll_rad))
 
 

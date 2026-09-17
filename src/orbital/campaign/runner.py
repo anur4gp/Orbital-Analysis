@@ -59,7 +59,19 @@ def build_filters(config: CampaignConfig) -> list[SequentialFilter]:
 
 
 def point_scenario(config: CampaignConfig, settings: PointSettings) -> Scenario:
-    """The tracking scenario for one design point."""
+    """Build the tracking scenario for one design point.
+
+    Parameters
+    ----------
+    config
+        The campaign, supplying the orbit and arc length.
+    settings
+        Physical parameter values at this design point.
+
+    Returns
+    -------
+    Scenario
+    """
     a = config.semi_major_axis_km
     period_s = 2.0 * np.pi * np.sqrt(a**3 / MU_EARTH_KM3_S2)
     t_grid = np.arange(0.0, config.revolutions * period_s, settings.cadence_s)
@@ -80,7 +92,20 @@ def point_scenario(config: CampaignConfig, settings: PointSettings) -> Scenario:
 
 
 def point_seed(config: CampaignConfig, index: int) -> int:
-    """Stream seed for design point ``index``: order- and worker-independent."""
+    """Stream seed for one design point: order- and worker-independent.
+
+    Parameters
+    ----------
+    config
+        The campaign, supplying the base seed.
+    index
+        Design-point index.
+
+    Returns
+    -------
+    int
+        Seed derived from ``(seed, index)``.
+    """
     return int(np.random.SeedSequence([config.seed, index]).generate_state(1)[0])
 
 
@@ -89,6 +114,18 @@ def run_point(index: int, config: CampaignConfig) -> list[dict[str, Any]]:
 
     Rows carry the point's physical parameters, so the parquet file is
     self-describing without joining back to the design.
+
+    Parameters
+    ----------
+    index
+        Design-point index.
+    config
+        The campaign.
+
+    Returns
+    -------
+    list of dict
+        One row per filter.
     """
     settings = settings_for(design_matrix(config)[index])
     scenario = point_scenario(config, settings)
@@ -128,6 +165,25 @@ def shard_indices(n_points: int, shard: int, shards: int) -> list[int]:
 
     Round-robin rather than contiguous blocks: cost per point varies with
     cadence and mask, so interleaving keeps shards closer in runtime.
+
+    Parameters
+    ----------
+    n_points
+        Design size.
+    shard
+        Zero-based shard index.
+    shards
+        Total shards.
+
+    Returns
+    -------
+    list of int
+        Design-point indices owned by this shard.
+
+    Raises
+    ------
+    ValueError
+        If ``shard`` is outside ``0..shards - 1``.
     """
     if not 0 <= shard < shards:
         raise ValueError(f"shard {shard} outside 0..{shards - 1}")

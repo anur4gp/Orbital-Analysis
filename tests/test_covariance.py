@@ -124,7 +124,8 @@ class TestSampling:
 
     def test_singular_covariance_does_not_raise(self, rng):
         """A degenerate covariance has no Cholesky factor; the eigen fallback
-        must carry it."""
+        must carry it.
+        """
         singular = np.diag([1.0, 1.0, 0.0])
         draws = sample_relative_offsets(singular, 64, rng)
         assert draws.shape == (64, 3)

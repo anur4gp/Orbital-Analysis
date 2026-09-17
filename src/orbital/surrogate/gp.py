@@ -20,8 +20,19 @@ from scipy.optimize import minimize
 def ard_sqexp(xa: np.ndarray, xb: np.ndarray, log_theta: np.ndarray) -> np.ndarray:
     """Squared-exponential kernel with one length scale per dimension.
 
-    log_theta packs [log amplitude, log length scales...]; working in logs
-    keeps the optimizer unconstrained and the parameters positive.
+    Parameters
+    ----------
+    xa, xb
+        Input points, shape (na, k) and (nb, k), already scaled to the unit
+        cube.
+    log_theta
+        Packs ``[log amplitude, log length scale per dimension]``; working in
+        logs keeps the optimizer unconstrained and the parameters positive.
+
+    Returns
+    -------
+    numpy.ndarray
+        Kernel matrix, shape (na, nb).
     """
     # Clipped so the optimizer cannot walk into overflow or a zero length
     # scale; the marginal likelihood is flat well before these limits.
@@ -43,8 +54,26 @@ class GP:
     _lower: np.ndarray = field(repr=False)
     _alpha: np.ndarray = field(repr=False)
 
-    def predict(self, x_new: np.ndarray, return_std: bool = False):
-        """Posterior mean (and optionally standard deviation) at new points."""
+    def predict(
+        self, x_new: np.ndarray, return_std: bool = False
+    ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
+        """Posterior mean (and optionally standard deviation) at new points.
+
+        Parameters
+        ----------
+        x_new
+            Query points in the unit cube, shape (n, k) or (k,).
+        return_std
+            Also return the posterior standard deviation.
+
+        Returns
+        -------
+        mean : numpy.ndarray
+            Posterior mean, in the units of the training targets.
+        std : numpy.ndarray, optional
+            Posterior standard deviation, same units. Only when
+            ``return_std`` is true.
+        """
         x_new = np.atleast_2d(x_new)
         k_star = ard_sqexp(x_new, self.x, self.log_theta)
         mean = k_star @ self._alpha * self.y_std + self.y_mean
@@ -70,7 +99,25 @@ def _neg_log_marginal(params: np.ndarray, x: np.ndarray, y: np.ndarray) -> float
 
 def fit_gp(x: np.ndarray, y: np.ndarray, n_restarts: int = 4,
            seed: int = 0) -> GP:
-    """Fit a GP to (x in the unit cube, y). Targets are standardized internally."""
+    """Fit a GP by maximising the log marginal likelihood.
+
+    Parameters
+    ----------
+    x
+        Training inputs in the unit cube, shape (n, k).
+    y
+        Training targets, shape (n,). Standardised internally.
+    n_restarts
+        Optimiser restarts; the likelihood is multimodal in the length
+        scales, so one start is not enough.
+    seed
+        Seed for the restart perturbations, making the fit reproducible.
+
+    Returns
+    -------
+    GP
+        Fitted model, carrying its Cholesky factor and weights.
+    """
     x = np.atleast_2d(np.asarray(x, dtype=float))
     y = np.asarray(y, dtype=float)
     y_mean, y_std = float(y.mean()), float(y.std())
