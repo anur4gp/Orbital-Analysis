@@ -20,3 +20,7 @@ J2_EARTH: float = 1.0826266835531513e-3
 
 #: Earth rotation rate, rad/s (IERS, mean sidereal).
 OMEGA_EARTH_RAD_S: float = 7.292115146706979e-5
+
+#: WGS-84 ellipsoid, used only for geodetic station coordinates.
+WGS84_A_KM: float = 6378.137
+WGS84_F: float = 1.0 / 298.257223563

@@ -19,12 +19,7 @@ from orbital.attitude.dcm import to_dcm
 from orbital.dynamics import InertiaTensor, MassProperties, RigidBody, RigidBodyState
 from orbital.dynamics import diagnostics as dg
 from orbital.integrators import DOP853, RK4
-from orbital.paths import WRITEUP_DIR
-
-FIGDIR = WRITEUP_DIR / "figures"
-
-BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
-INK, INK2, MUTED = "#0b0b0b", "#52514e", "#8a8880"
+from orbital.plotting import AQUA, BLUE, FIGURE_DIR, INK2, MUTED, ORANGE, despine, save, style
 
 #: Log axes cannot show an exact zero; errors are clamped to this floor,
 #: which is below float64 resolution for these quantities.
@@ -45,21 +40,6 @@ CASES = [
     ("RK4, h = 0.25 s", RK4(0.25), 1e-12, AQUA, "^", ":"),
     ("DOP853, rtol = 1e-12", DOP853(1e-12, 1e-14), 1e-12, BLUE, "o", "-"),
 ]
-
-
-def style() -> None:
-    plt.rcParams.update({
-        "figure.dpi": 140, "savefig.dpi": 300,
-        "font.family": "serif", "font.size": 9,
-        "axes.titlesize": 10, "axes.labelsize": 9,
-        "axes.edgecolor": MUTED, "axes.linewidth": 0.8,
-        "axes.grid": True, "axes.axisbelow": True,
-        "grid.color": "#e3e2dd", "grid.linewidth": 0.6,
-        "legend.frameon": False, "legend.fontsize": 8,
-        "xtick.color": INK2, "ytick.color": INK2,
-        "text.color": INK, "axes.labelcolor": INK,
-        "figure.facecolor": "white", "axes.facecolor": "white",
-    })
 
 
 def closed_form_attitude(t: np.ndarray) -> list[np.ndarray]:
@@ -147,13 +127,10 @@ def main() -> int:
     for ax in axes:
         ax.set_xlabel("time (s)")
         ax.set_ylim(FLOOR / 3, 1e-2)
-        for side in ("top", "right"):
-            ax.spines[side].set_visible(False)
+        despine(ax)
 
-    FIGDIR.mkdir(parents=True, exist_ok=True)
-    for ext in ("pdf", "png"):
-        fig.savefig(FIGDIR / f"fig5_6dof_validation.{ext}", bbox_inches="tight")
-    print(f"\nwrote {FIGDIR / 'fig5_6dof_validation.pdf'}")
+    save(fig, "fig5_6dof_validation")
+    print(f"\nwrote {FIGURE_DIR / 'fig5_6dof_validation.pdf'}")
     return 0
 
 

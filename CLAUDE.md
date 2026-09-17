@@ -415,8 +415,53 @@ libration within 0.1% of the analytic curve.
 J2 assumption: the ECI z-axis is treated as Earth's spin axis, which neglects
 precession and nutation (~0.3 deg since J2000).
 
-Not built yet: TEME<->J2000 conversion (`core/frames.py`, `timescales.py`).
-Phase 2 needs this for ground stations (ECEF) anyway.
+### New Phase 2 status: EKF/UKF orbit determination built
+
+- `core/timescales.py` (Julian date), `core/frames.py` (IAU-82 GMST,
+  WGS-84 geodetic -> ECEF, `EarthRotation`: spin about ECI z, no
+  precession/nutation, UT1 = UTC by default). GMST matches Vallado Ex 3-5.
+- `estimation/orbit_model.py`: 6-state dynamics reusing Phase 1 forces,
+  STM by variational equations with central-difference da/dr, vectorised
+  `acceleration_many` path (5x speedup), white-acceleration Q
+- `estimation/base.py` (shared run loop, histories), `ekf.py` (Joseph form),
+  `ukf.py` (alpha=1, beta=2, kappa=0; redraw after predict)
+- `estimation/measurements/`: `MeasurementModel` protocol, `GroundStation`,
+  `RangeRangeRate`, `PositionFix` (linear reference case)
+- `estimation/consistency.py`: NEES, NIS, chi-square averaged bounds, RMS,
+  `measurement_nonlinearity` (second-order spread / noise)
+- `estimation/simulation.py`: truth from the 6-DOF propagator, noisy obs,
+  `monte_carlo` (same noise for every filter)
+- `scripts/run_estimation.py` -> fig6_estimation_error, fig7_estimation_consistency;
+  MC cached in `data/estimation_mc.npz` (gitignored), `--force` reruns
+- `plotting.py`: shared style + `save()` that strips the PDF CreationDate
+- tests: `test_frames.py`, `test_estimation.py`; 204 total pass, ruff/mypy
+  clean, behaviour lock IDENTICAL
+
+Result (50 runs, 2 revs, 3 stations, 10 m / 1 cm/s): precise prior (10 m,
+1 cm/s) EKF = UKF, NEES 6.6 in band, 3.0 m. TLE-grade prior (1 km, 1 m/s):
+EKF NEES 1019, 22.8 m; UKF NEES 8.8 (mildly optimistic), 5.8 m.
+
+**Why, measured rather than assumed.** Two effects: (1) at the first update
+the range-rate second-order spread is 3.2x its noise, which pushes NEES to
+~20; (2) the dominant one: across the 73 min gap, linear PhiPPhi^T keeps
+P's thinnest eigenvalue at 3.6e-15 while a 4000-point MC cloud gives
+1.5e-12 (the UKF gives 1.7e-12), so the EKF is ~400x overconfident in the
+direction it trusts most. RTN sigmas and the mean are right to 1%, so
+per-axis 3-sigma plots look fine while NEES is 150x too high.
+
+**Wrong hypothesis caught:** I first blamed range-rate curvature alone. An
+ablation with range-only tracking still broke the EKF (NEES ~1300), at the
+second pass, which is what exposed the propagation mechanism.
+
+Test lessons: NEES at successive times shares the same runs, so
+"fraction of times inside the band" is far noisier than it looks. Test the
+final time with enough runs (40) instead. A 12-run test failed on sampling
+noise alone.
+
+Machine note: runs are much slower under heavy background load (Discord,
+Chrome); 600 s tool timeouts were hit for that reason, not a code problem.
+
+Not built: TEME<->J2000 (no SGP4 data enters the estimation work yet).
 
 ### Phase 1 steps, in order (after setup above is done)
 
