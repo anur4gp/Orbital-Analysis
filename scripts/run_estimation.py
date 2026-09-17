@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import time
-from datetime import UTC, datetime
 
 import matplotlib
 
@@ -31,20 +30,22 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from orbital.attitude.dcm import rot_x, rot_z
 from orbital.conjunction.covariance import rtn_basis
 from orbital.core.constants import MU_EARTH_KM3_S2
-from orbital.core.frames import EarthRotation
 from orbital.dynamics import J2Gravity, TwoBodyGravity
 from orbital.estimation import EKF, UKF, OrbitModel
 from orbital.estimation import consistency as cs
-from orbital.estimation.measurements import GroundStation, RangeRangeRate
-from orbital.estimation.simulation import Scenario, monte_carlo, simulate_observations
+from orbital.estimation.simulation import (
+    Scenario,
+    circular_orbit_state,
+    monte_carlo,
+    simulate_observations,
+    tracking_network,
+)
 from orbital.paths import DATA_DIR
 from orbital.plotting import BAND, BLUE, INK2, ORANGE, despine, save, style
 
 CACHE = DATA_DIR / "estimation_mc.npz"
-EPOCH = datetime(2026, 9, 16, tzinfo=UTC)
 FORCES = (TwoBodyGravity(), J2Gravity())
 MODEL = OrbitModel(FORCES)
 A_KM, INC_DEG, RAAN_DEG = 7000.0, 51.6, 250.0
@@ -57,19 +58,11 @@ CONFIDENCE = 0.95
 
 
 def initial_state() -> np.ndarray:
-    c = rot_z(np.radians(RAAN_DEG)) @ rot_x(np.radians(INC_DEG))
-    v = np.sqrt(MU_EARTH_KM3_S2 / A_KM)
-    return np.concatenate([c @ [A_KM, 0.0, 0.0], c @ [0.0, v, 0.0]])
+    return circular_orbit_state(A_KM, INC_DEG, RAAN_DEG)
 
 
-def network() -> list[RangeRangeRate]:
-    earth = EarthRotation(EPOCH)
-    sites = [
-        GroundStation("Goldstone", 35.4267, -116.8900, 1.00, earth),
-        GroundStation("Canberra", -35.4014, 148.9817, 0.69, earth),
-        GroundStation("Madrid", 40.4314, -4.2481, 0.83, earth),
-    ]
-    return [RangeRangeRate(s, sigma_range_km=0.010, sigma_range_rate_km_s=1e-5) for s in sites]
+def network() -> list:
+    return tracking_network(sigma_range_km=0.010, sigma_range_rate_km_s=1e-5)
 
 
 def scenario(sigma_r_km: float, sigma_v_km_s: float) -> Scenario:

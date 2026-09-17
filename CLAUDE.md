@@ -463,6 +463,57 @@ Chrome); 600 s tool timeouts were hit for that reason, not a code problem.
 
 Not built: TEME<->J2000 (no SGP4 data enters the estimation work yet).
 
+### New Phase 3 status: campaign runner + Docker built
+
+Sweeps 6 params (sigma_r0, sigma_v0, sigma_range, sigma_range_rate, cadence,
+elevation mask) over a MaxPro design; each point runs an N-trial MC with both
+filters. Reuses the RUSIS parallel-tempering designs (cached CSV in
+`reference/lhd/designs/`, committed), NOT scipy.stats.qmc.
+
+- `campaign/config.py` — `Parameter` (log/linear), `PARAMETERS`,
+  `CampaignConfig` (+fingerprint), `Provenance` (git commit, lib versions)
+- `campaign/design.py` — design matrix, unit-cube -> `PointSettings`
+- `campaign/runner.py` — `run_point`, `run_campaign` (multiprocessing
+  "spawn", round-robin shards, per-point seed from `(seed, index)`)
+- `campaign/storage.py` — parquet + config.json, `merge_shards`, `summarize`
+- `campaign/cli.py`, `__main__.py` — `python -m orbital.campaign`, the
+  container entrypoint; `--shard` defaults to `AWS_BATCH_JOB_ARRAY_INDEX` /
+  `BATCH_TASK_INDEX`
+- `docker/Dockerfile`, `docker/README.md` (AWS Batch + GCP Batch), `.dockerignore`
+- `scripts/run_campaign.py` — local run + aggregation + fig8
+- `estimation/simulation.py` gained `circular_orbit_state`, `tracking_network`,
+  `DEFAULT_SITES` so the campaign and `run_estimation.py` share one scenario
+- `tests/test_campaign.py`
+
+Result (64 points x 8 trials x 2 filters, 1017 s on 8 workers, campaign
+`572205a3f60d`): EKF consistent at 28% of points (median NEES 70.2, p90
+1.4e8, 10.4 m), UKF at 72% (median 7.0, p90 12.5, 3.0 m). Consistency vs
+sigma_r0 decays for the EKF (50/38/19/6% across decades) and is flat for the
+UKF (~75%). EKF/UKF RMSE ratio: median 1.30, p90 1.7e3, worst 3.2e6 --
+beyond ~2 km prior the EKF diverges rather than degrades. The UKF misses the band at
+~25% of points too, but its worst case over all 64 is NEES 32 / 185 m against
+the EKF's 2e17 / 2570 km.
+
+**Docker is verified, not just written:** image builds, runs sharded, and a
+2-shard/2-worker container run is BIT-IDENTICAL to a 1-worker unsharded one.
+
+**Cross-platform caveat, measured:** container vs macOS differ by up to
+6.6e-5 relative on the most sensitive metric even with deps pinned
+(numpy 2.0.2, scipy 1.13.1), because macOS links Accelerate and the image
+links OpenBLAS. Swept parameters and bands are bit-identical. Determinism
+within a platform is exact.
+
+**Container constraint (found by testing):** the image has no compiler, so it
+runs only design sizes already cached as committed CSV (n = 4, 16, 32, 64,
+128, 256 for k=6). Asking for an uncached size now fails with a message
+listing what is available instead of silently substituting another design.
+CI's smoke test uses n=16 for this reason.
+
+**Trap hit:** `multiprocessing` "spawn" re-imports the caller's `__main__`,
+so a script without an `if __name__ == "__main__"` guard forks itself
+recursively (a stdin heredoc produced 512 KB of runaway output). Documented
+in the runner docstring; scripts have the guard.
+
 ### Phase 1 steps, in order (after setup above is done)
 
 1. Understand the TLE format (epoch, catalog number, six orbital elements)

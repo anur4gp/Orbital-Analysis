@@ -10,20 +10,38 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import numpy as np
 from numpy.typing import ArrayLike
 
+from orbital.attitude.dcm import rot_x, rot_z
 from orbital.attitude.quaternion import IDENTITY, FloatArray
+from orbital.core.constants import MU_EARTH_KM3_S2
+from orbital.core.frames import EarthRotation
 from orbital.dynamics.forces import ForceModel
 from orbital.dynamics.inertia import InertiaTensor, MassProperties
 from orbital.dynamics.rigid_body import RigidBody
 from orbital.dynamics.state import RigidBodyState
 from orbital.estimation.base import FilterHistory, Observation, SequentialFilter
 from orbital.estimation.measurements.base import MeasurementModel
+from orbital.estimation.measurements.ground_station import GroundStation
+from orbital.estimation.measurements.range_rate import RangeRangeRate
 from orbital.integrators.adaptive import DOP853
 
 TRUTH_INTEGRATOR = DOP853(rtol=1e-12, atol=1e-13)
+
+#: Reference epoch for the tracking scenarios.
+DEFAULT_EPOCH = datetime(2026, 9, 16, tzinfo=UTC)
+
+#: Three widely separated sites: (name, latitude deg, east longitude deg,
+#: altitude km). Coordinates are approximate DSN complex locations, used as
+#: a plausible geometry rather than as survey data.
+DEFAULT_SITES = (
+    ("Goldstone", 35.4267, -116.8900, 1.00),
+    ("Canberra", -35.4014, 148.9817, 0.69),
+    ("Madrid", 40.4314, -4.2481, 0.83),
+)
 _NOMINAL_BODY = MassProperties(100.0, InertiaTensor.diagonal(10.0, 12.0, 15.0))
 
 
@@ -171,3 +189,30 @@ def monte_carlo(
             updated=runs[0].updated,
         )
     return results
+
+
+def circular_orbit_state(
+    a_km: float, inclination_deg: float, raan_deg: float = 0.0
+) -> FloatArray:
+    """State of a circular orbit at its ascending node, km and km/s, ECI_J2000."""
+    c = rot_z(np.radians(raan_deg)) @ rot_x(np.radians(inclination_deg))
+    speed = np.sqrt(MU_EARTH_KM3_S2 / a_km)
+    return np.concatenate([c @ [a_km, 0.0, 0.0], c @ [0.0, speed, 0.0]])
+
+
+def tracking_network(
+    sigma_range_km: float = 0.010,
+    sigma_range_rate_km_s: float = 1.0e-5,
+    min_elevation_deg: float = 10.0,
+    epoch: datetime | None = None,
+) -> list[RangeRangeRate]:
+    """Range/range-rate models for the three default sites."""
+    earth = EarthRotation(DEFAULT_EPOCH if epoch is None else epoch)
+    return [
+        RangeRangeRate(
+            GroundStation(name, lat, lon, alt, earth, min_elevation_deg),
+            sigma_range_km=sigma_range_km,
+            sigma_range_rate_km_s=sigma_range_rate_km_s,
+        )
+        for name, lat, lon, alt in DEFAULT_SITES
+    ]

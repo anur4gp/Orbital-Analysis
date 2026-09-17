@@ -24,6 +24,7 @@ src/orbital/
   dynamics/           6-DOF equations of motion, force and torque models
   integrators/        fixed-step RK4 and adaptive DOP853 behind one interface
   estimation/         EKF and UKF, measurement models, NEES/NIS, simulation
+  campaign/           parameter sweeps: design, parallel runner, parquet store
   plotting.py         shared figure style
   sgp4tools/          TLE parsing, SGP4 propagation, CelesTrak / Space-Track
   conjunction/        covariance, collision probability, screening, cases
@@ -201,6 +202,55 @@ precession, nutation or polar motion, and UT1 is taken as UTC. That is
 self-consistent in simulation but not accurate enough for real tracking
 data.
 
+## Monte Carlo campaigns
+
+Phase 2 compared the filters at two points in parameter space. The campaign
+runner maps the space: six parameters — initial position and velocity
+uncertainty, range and range-rate noise, measurement cadence, elevation mask
+— sampled on a MaxPro space-filling design, with a Monte Carlo at every point.
+
+The design comes from the parallel-tempering MaxPro code in
+[`reference/lhd/`](reference/lhd/), reusing the same machinery as the
+collision-probability surrogate rather than adding a second sampler. Designs
+are cached CSV artifacts, so the optimizer never runs during a campaign.
+
+**Reproducibility.** Each design point derives its random stream from
+`(seed, index)`. Results therefore don't depend on worker count, shard count,
+or completion order, which is what makes a local run and a cloud batch array
+interchangeable. The tests assert this: serial equals parallel, and sharded
+equals unsharded, as exact frame comparisons.
+
+**Storage.** One parquet row per (design point, filter), carrying that
+point's parameter values, alongside a `config.json` holding the config, its
+fingerprint, the git commit, and library versions.
+
+### Result (64 points × 8 trials × 2 filters, 17 min on 8 cores)
+
+| Filter | Points consistent | Median final NEES | 90th pct | Median position RMSE |
+|---|---|---|---|---|
+| EKF | 28% | 70.2 | 1.4×10⁸ | 10.4 m |
+| UKF | 72% | 7.0 | 12.5 | 3.0 m |
+
+Consistency rate against initial position uncertainty:
+
+| σ_r0 | 10–56 m | 56–316 m | 0.3–1.8 km | 1.8–10 km |
+|---|---|---|---|---|
+| EKF | 50% | 38% | 19% | 6% |
+| UKF | 81% | 56% | 75% | 75% |
+
+The sweep turns the Phase 2 result into a boundary: the EKF's consistency
+falls off steadily as the prior widens, while the UKF's is roughly flat. The
+accuracy cost follows the same shape — the median EKF/UKF final-RMSE ratio is
+1.30, but the 90th percentile is 1.7×10³, because past about 2 km of initial
+uncertainty some EKF runs diverge outright rather than degrade.
+
+Neither filter is uniformly safe, but the failure modes differ in kind: the
+UKF also misses the band at roughly a quarter of the points, yet its worst
+case over all 64 is NEES 32 and 185 m of error, against the EKF's 2×10¹⁷ and
+2570 km. Panel (c) of
+[`fig8_campaign`](writeup/figures/fig8_campaign.png) shows the failures are
+organized by prior width, not by sensor noise.
+
 ## Running
 
 ```bash
@@ -208,6 +258,7 @@ pytest                              # offline suite, no network required
 python scripts/validate_iss.py      # propagation sanity checks
 python scripts/validate_6dof.py     # 6-DOF conservation and precession curves
 python scripts/run_estimation.py    # EKF vs UKF Monte Carlo (~2-3 min, cached)
+python scripts/run_campaign.py      # 64-point filter campaign (~10 min, cached)
 python scripts/run_montecarlo.py    # collision-probability cost baseline
 python scripts/run_surrogate.py     # surrogate accuracy benchmark
 python scripts/build_dataset.py     # catalog screen (~11 min)

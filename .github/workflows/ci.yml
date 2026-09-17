@@ -24,7 +24,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,triage]"
+          pip install -e ".[dev,triage,campaign]"
 
       - name: Lint
         run: ruff check .
@@ -36,3 +36,33 @@ jobs:
       # needed, so CI never depends on a third-party service being up.
       - name: Test
         run: pytest -q --cov=orbital --cov-report=term-missing
+
+  # The campaign image is the artifact the cloud batch path depends on, so a
+  # broken Dockerfile should fail here rather than at submit time. Build only:
+  # running a campaign is far too slow for CI.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build campaign image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          tags: orbital-campaign:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the entrypoint
+        run: |
+          docker run --rm orbital-campaign:ci --help
+          mkdir -p out
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/out:/data" \
+            orbital-campaign:ci \
+            --points 16 --trials 2 --revolutions 0.3 --workers 1 --out /data/ci
+          test -f out/ci/runs.parquet && test -f out/ci/config.json

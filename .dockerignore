@@ -1,0 +1,23 @@
+# Keep the build context small and the image free of local state.
+.git
+.github
+.venv312
+venv
+data
+notebooks
+writeup
+tests
+tools
+scripts
+reference/lhd/build
+reference/lhd/*.so
+reference/lhd/*.cpp
+reference/lhd/*.h
+reference/lhd/setup.py
+**/__pycache__
+**/*.pyc
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.env
+*.egg-info
