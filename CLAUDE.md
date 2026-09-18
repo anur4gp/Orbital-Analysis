@@ -378,9 +378,28 @@ structurally checked but not rendered. No TeX toolchain on this machine; to
 build locally install TinyTeX or Tectonic + the LaTeX Workshop VS Code
 extension, then `tlmgr install siunitx booktabs multirow`.
 
-**Report scope:** `report.tex` covers the conjunction work only (original
-Phases 1-5). It contains no 6-DOF, EKF/UKF or campaign material and uses
-figures 1-4 only; figures 5-8 are referenced from the README instead.
+**Report scope (updated 2026-09-17):** `report.tex` now covers the whole
+project. Added sections `sec:flight` (6-DOF propagator + tab:sixdof + fig5),
+`sec:od` (EKF/UKF + tab:filters + fig6/fig7) and `sec:campaign`
+(6-parameter sweep + tab:campaign + fig8), so all eight figures are used.
+Title subtitle, abstract and contributions list extended to match;
+limitations gained five entries (TEME/J2000 not coupled, simplified Earth
+orientation, no dynamic mismodelling, UKF not unconditionally consistent);
+the reproducibility section's stale `src/...` commands were corrected to
+`scripts/...` and "86 offline checks" to 389 checks / 96% coverage.
+
+`writeup/report.pdf` is the 8-page pre-extension render and is now STALE
+until Anurag recompiles (Overleaf). Structurally re-validated after the
+edit: 18 bibitems all cited, every ref resolves, environments and braces
+balanced, no non-ASCII, tabular column counts consistent.
+
+**Citations:** `rusis` (Beilis, Paudel, Mireles, "Optimization of Parallel
+Tempering for Latin Hypercube Designs," RUSIS@IU Technical Report, 2025) was
+supplied by Anurag and is reliable. It replaced the old phrasing "developed
+for unrelated prior work", which hid that the design code is his own
+research. The other 7 new entries (schaub, shepperd, hairer, montenbruck,
+julier, wan, barshalom) were written FROM MEMORY like the original 10 and
+carry the same verify-before-submission caveat.
 
 **Bibliographic details in report.tex were written from memory and must be
 checked before any submission.**

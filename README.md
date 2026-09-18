@@ -10,11 +10,12 @@ trained at space-filling design points, and a risk-triage classifier. The
 second is a 6-DOF rigid-body propagator and an EKF/UKF orbit-determination
 stack built on top of it.
 
-A short report covering the conjunction work, including its negative
-results, is in [`writeup/report.tex`](writeup/report.tex) —
-**[compiled PDF here](writeup/report.pdf)** (8 pages). It does not cover the
-flight-dynamics and estimation work; that is documented in this README and
-in the running log, [`writeup/project_log.tex`](writeup/project_log.tex).
+A short report covering the whole project — the conjunction pipeline, the
+6-DOF propagator, the EKF/UKF comparison, the parameter campaign, and the
+negative results — is in [`writeup/report.tex`](writeup/report.tex), with
+the compiled PDF at [`writeup/report.pdf`](writeup/report.pdf). Regenerate
+the PDF after editing the source. The running log with every measured number
+is [`writeup/project_log.tex`](writeup/project_log.tex).
 
 ## Headline results
 
