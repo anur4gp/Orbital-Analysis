@@ -544,14 +544,15 @@ in the runner docstring; scripts have the guard.
 Phase 4 was an audit pass, since Phase 0 already delivered pytest/CI/types.
 Measured first, then closed the gaps, then made the standards enforceable.
 
-**Coverage 65% -> 93%.** Ten modules were at 0%: propagation, celestrak,
+**Coverage 65% -> 96%** (fast subset 91%). Ten modules were at 0%: propagation, celestrak,
 spacetrack, screening, events, cases, gp, triage features/evaluation,
 plotting. New test files: `test_propagation.py`, `test_screening.py`,
 `test_data_fetch.py`, `test_events.py`, `test_cases.py`,
 `test_surrogate_gp.py`, `test_triage.py`, `test_plotting.py`,
 `test_paths_cli.py`. All offline: network clients use monkeypatched
 transports, the rate limiter a fake clock, Space-Track a stub client.
-CI now enforces `--cov-fail-under=90`.
+CI now enforces `--cov-fail-under=93`, a ratchet set just under the measured
+value. Full suite: 389 tests in ~3.5 min.
 
 **Types.** 10 unannotated public functions fixed; mypy now runs with
 `disallow_untyped_defs`, `disallow_incomplete_defs`, `no_implicit_optional`,
@@ -584,6 +585,13 @@ conserved" had to become "no secular drift" (means of the two halves agree).
 README restructured for a reader evaluating the repo cold: headline results
 table with the script that produces each number, a "reading this cold"
 section, and the verification philosophy stated explicitly.
+
+### Fact sheet for outside use
+
+`docs/RESULTS.md` consolidates every measured result, the tech-stack keyword
+list, the do-not-overclaim list and two calibrated example bullets. It exists
+to be pasted into another chat as context for resume/CV writing. Update it
+when a headline number changes.
 
 ### Phase 1 steps, in order (after setup above is done)
 
