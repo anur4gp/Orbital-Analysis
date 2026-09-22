@@ -255,6 +255,29 @@ def ground_scenario(sigma_r_km: float, sigma_v_km_s: float, t_end_s: float) -> S
 N_RUNS = 12
 
 
+class TestMonteCarloInputs:
+    @pytest.mark.parametrize("n_runs", [0, -1, 1.5, True])
+    def test_rejects_invalid_run_count_before_propagation(self, n_runs, monkeypatch):
+        def unexpected_truth(self):
+            pytest.fail("invalid input reached truth propagation")
+
+        monkeypatch.setattr(Scenario, "truth", unexpected_truth)
+        with pytest.raises(ValueError, match="positive integer"):
+            monte_carlo(ground_scenario(0.01, 1e-5, 120.0), [EKF(MODEL)], n_runs, seed=1)
+
+    @pytest.mark.parametrize("filters, message", [
+        ([], "at least one filter"),
+        ([EKF(MODEL), EKF(MODEL)], "filter names must be unique"),
+    ])
+    def test_rejects_ambiguous_filter_selection(self, filters, message, monkeypatch):
+        def unexpected_truth(self):
+            pytest.fail("invalid input reached truth propagation")
+
+        monkeypatch.setattr(Scenario, "truth", unexpected_truth)
+        with pytest.raises(ValueError, match=message):
+            monte_carlo(ground_scenario(0.01, 1e-5, 120.0), filters, 1, seed=1)
+
+
 @pytest.mark.slow
 class TestFilterConsistency:
     """First pass over Madrid begins at t = 1500 s in this geometry."""

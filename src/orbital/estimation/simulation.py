@@ -112,9 +112,11 @@ class MonteCarloResult:
         ``x_true - x_hat``, shape ``(N, K, 6)``.
     P
         Filter covariances, shape ``(N, K, 6, 6)``.
-    nis, nis_dof
-        Per-entry NIS and its dof, shape ``(N, K)``; NaN / 0 where no
-        observation was processed.
+    nis
+        Per-run NIS, shape ``(N, K)``; NaN where no observation was processed.
+    nis_dof
+        Measurement dimension at each entry, shape ``(K,)``; 0 where no
+        observation was processed. The schedule is shared by all runs.
     updated
         True where the entry is a posterior, shape ``(K,)``.
     """
@@ -133,7 +135,16 @@ def monte_carlo(
     n_runs: int,
     seed: int,
 ) -> dict[str, MonteCarloResult]:
-    """Run every filter on the same ``n_runs`` noise realisations, keyed by filter name."""
+    """Run every filter on the same positive number of noise realisations.
+
+    Results are keyed by filter name, which must be unique.
+    """
+    if isinstance(n_runs, (bool, np.bool_)) or not isinstance(n_runs, (int, np.integer)) or n_runs < 1:
+        raise ValueError("n_runs must be a positive integer")
+    if not filters:
+        raise ValueError("at least one filter is required")
+    if len({f.name for f in filters}) != len(filters):
+        raise ValueError("filter names must be unique")
     truth = scenario.truth()
     rng = np.random.default_rng(seed)
     root_p0 = np.linalg.cholesky(scenario.p0)

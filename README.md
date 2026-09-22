@@ -308,6 +308,10 @@ python scripts/run_triage.py        # triage evaluation
 python scripts/make_figures.py      # report figures
 ```
 
+The estimation script reuses `data/estimation_mc.npz` only when the run count,
+script and package source, and NumPy/SciPy versions match. Older caches are
+recomputed on the next run; `--force` explicitly reruns the experiment.
+
 Scripts that touch CelesTrak or Space-Track cache locally; both services
 rate-limit aggressively, so repeated runs are served from `data/`.
 
