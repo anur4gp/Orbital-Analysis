@@ -1,55 +1,28 @@
-"""Encounter-parameter spaces the surrogate is fitted over.
+"""Encounter-parameter spaces for the surrogate.
 
-**4-D is primary.** Pc is determined by exactly four parameters, because its
-defining integral has a rotation-symmetric domain (the hard-body disk) and is
-covariant under uniform scaling of all lengths. That is an exact identity,
-not an approximation: `tests/test_paramspace.py` verifies both invariances
-and the reduction itself to ~1e-12 relative error over hundreds of random
-encounters spanning the full box. At equal fill distance the reduction cuts
-required design points roughly 8x, and every design point costs one expensive
-Monte Carlo run.
+Pc depends on only four parameters (rotation invariance of the disk and
+scale covariance of all lengths), verified in ``tests/test_paramspace.py``.
+The raw 6-D space is kept as an ablation.
 
-The identity holds *given the model* -- circular hard body, Gaussian
-uncertainty, short-term encounter. Slow encounters (vrel < 1 km/s, currently
-filtered out) fall outside it. The raw 6-D space is retained as an ablation
-to demonstrate the saving empirically rather than assert it.
+4-D (lengths in hard-body radii, so HBR = 1)::
 
-## 4-D space (primary)
+    0  log10 s1   sigma_1 / HBR
+    1  log10 r    sigma_2 / sigma_1   (<= 1)
+    2  d1         mu_1 / sigma_1      (Pc is even, so >= 0)
+    3  d2         mu_2 / sigma_2
 
-    0  log10 s1     sigma_1 / HBR      uncertainty size vs object size
-    1  log10 r      sigma_2 / sigma_1  anisotropy, <= 1 by construction
-    2  d1           mu_1 / sigma_1     miss along the major axis, in sigmas
-    3  d2           mu_2 / sigma_2     miss along the minor axis, in sigmas
+6-D::
 
-Lengths are in units of the hard-body radius, so HBR = 1 by construction.
-d1, d2 >= 0: Pc is even in each component separately in the eigenbasis
-(also verified in the tests).
-
-## 6-D space (ablation)
-
-Parameters, all mapped from the unit cube:
-
-    0  mu_1        km      miss-vector component in the encounter plane
-    1  mu_2        km      miss-vector component
-    2  log10 s1    km      larger covariance axis
-    3  log10 s2    km      smaller covariance axis
-    4  theta       rad     orientation of the covariance eigenbasis, [0, pi)
-    5  log10 hbr   km      combined hard-body radius
-
-Ranges are taken from 40 real cdm_public conjunctions rebuilt in Phase 2,
-widened where the real sample is thin. The HBR range deliberately spans
-0.5-20 m: the RCS-derived 1-4 m is probably below operational values, and
-Pc scales as HBR^2, so the surrogate must cover that uncertainty.
+    0, 1  mu_1, mu_2   km
+    2, 3  log10 s1, s2 km
+    4     theta        rad, covariance orientation in [0, pi)
+    5     log10 hbr    km
 """
 from __future__ import annotations
 
 import numpy as np
 
-# --- 4-D primary space -------------------------------------------------
-# Ranges from 40 real cdm_public conjunctions rebuilt in Phase 2:
-# sigma_1/HBR spanned 69-1332, sigma_2/sigma_1 spanned 0.10-0.55. Widened.
-# d1, d2 are capped at 6 sigma, beyond which Pc is negligible against any
-# operational decision threshold.
+# Widened from 40 rebuilt cdm_public events (sigma_1/HBR 69-1332, ratio 0.10-0.55).
 BOUNDS_4D = np.array([
     [1.5, 3.5],     # log10(sigma_1 / HBR)   ->    32 - 3162
     [-1.5, 0.0],    # log10(sigma_2/sigma_1) -> 0.032 - 1
@@ -69,28 +42,20 @@ def from_unit_cube_4d(u: np.ndarray) -> np.ndarray:
 
 
 def unpack_4d(x: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
-    """One reduced parameter vector -> (mu_2d, cov_2d, hbr).
-
-    Lengths are in hard-body radii, so hbr is exactly 1. The covariance is
-    diagonal because the reduced coordinates are already the eigenbasis, and
-    the anisotropy is parameterized as a ratio so sigma_2 <= sigma_1 holds by
-    construction rather than needing a rejection step.
-    """
+    """One reduced parameter vector -> (mu_2d, diagonal cov_2d, hbr = 1)."""
     s1 = 10.0 ** x[0]
     s2 = s1 * 10.0 ** x[1]
     mu = np.array([x[2] * s1, x[3] * s2])
     return mu, np.diag([s1 ** 2, s2 ** 2]), 1.0
 
 
-# --- 6-D raw space (ablation) ------------------------------------------
-# (low, high) per dimension, in the units above.
 BOUNDS = np.array([
     [-3.0, 3.0],                       # mu_1, km
     [-3.0, 3.0],                       # mu_2, km
     [np.log10(0.10), np.log10(1.50)],  # log10 sigma_1, km
     [np.log10(0.10), np.log10(1.50)],  # log10 sigma_2, km
     [0.0, np.pi],                      # theta, rad (eigenbasis has period pi)
-    [np.log10(0.0005), np.log10(0.02)],  # log10 HBR, km  (0.5 m - 20 m)
+    [np.log10(0.0005), np.log10(0.02)],  # log10 HBR, km (0.5 - 20 m)
 ])
 
 DIM = BOUNDS.shape[0]
@@ -112,12 +77,7 @@ def to_unit_cube(x: np.ndarray) -> np.ndarray:
 
 
 def unpack(x: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
-    """One parameter vector -> (mu_2d, cov_2d, hbr_km).
-
-    The covariance is rebuilt as Q diag(s1^2, s2^2) Q^T, so it is symmetric
-    positive definite for every point in the box -- a box in the raw entries
-    (c11, c12, c22) would not be.
-    """
+    """One parameter vector -> (mu_2d, cov_2d = Q diag(s1^2, s2^2) Q^T, hbr_km)."""
     mu = np.array([x[0], x[1]])
     s1, s2 = 10.0 ** x[2], 10.0 ** x[3]
     theta = x[4]
@@ -128,26 +88,9 @@ def unpack(x: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
 
 
 def reduce_to_4d(mu: np.ndarray, cov: np.ndarray, hbr: float) -> np.ndarray:
-    """Collapse an encounter to the 4 parameters Pc actually depends on.
+    """Rotate to the covariance eigenbasis and scale by HBR.
 
-    Rotate into the covariance eigenbasis (the hard-body disk is rotation
-    invariant, so the absolute orientation cannot matter), then divide every
-    length by the hard-body radius (Pc is scale invariant). What survives is
-    ``(mu_1/R, mu_2/R, sigma_1/R, sigma_2/R)``.
-
-    Parameters
-    ----------
-    mu
-        Miss vector in the encounter plane, km, shape (2,).
-    cov
-        Projected covariance, km^2, shape (2, 2).
-    hbr
-        Combined hard-body radius, km.
-
-    Returns
-    -------
-    numpy.ndarray
-        The four dimensionless parameters, shape (4,).
+    Returns ``(mu_1/R, mu_2/R, sigma_1/R, sigma_2/R)``.
     """
     vals, vecs = np.linalg.eigh(cov)
     order = np.argsort(vals)[::-1]

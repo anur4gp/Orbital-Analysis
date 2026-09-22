@@ -1,10 +1,4 @@
-"""Direction cosine matrices and their exchange with quaternions.
-
-The DCM ``C`` returned here maps BODY components to inertial components,
-``v_I = C @ v_B``, matching the quaternion convention in
-:mod:`orbital.attitude.quaternion`. Its columns are the body axes expressed in
-the inertial frame.
-"""
+"""Direction cosine matrices, ``v_I = C @ v_B`` (BODY -> inertial)."""
 from __future__ import annotations
 
 import numpy as np
@@ -54,10 +48,8 @@ def to_dcm(q: ArrayLike) -> FloatArray:
 def from_dcm(c: ArrayLike) -> FloatArray:
     """Quaternion from a DCM (BODY -> inertial), canonical sign ``w >= 0``.
 
-    Uses Shepherd's method: of the four algebraically equivalent extraction
-    formulas, pick the one whose leading term is largest, so the division is
-    never by a small number. The naive ``w = sqrt(1 + tr C) / 2`` form loses
-    all precision for rotations near 180 degrees.
+    Shepperd's method: use the extraction with the largest pivot, which stays
+    accurate near 180 degrees.
 
     Raises
     ------

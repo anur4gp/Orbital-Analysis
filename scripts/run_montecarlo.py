@@ -1,7 +1,4 @@
-"""Phase 2 baseline: brute-force Monte Carlo Pc on real conjunctions.
-
-Produces the expensive ground truth Phase 3's surrogate is benchmarked
-against, and measures what that expense actually is.
+"""Brute-force Monte Carlo Pc on real conjunctions, cross-checked by quadrature.
 
 Run: python scripts/run_montecarlo.py
 """
@@ -74,7 +71,6 @@ def cost_curve(case: Case, rng) -> None:
         needed = (1 - truth) / (truth * target ** 2)
         print(f"  draws for {target:.0%} relative error: ~{needed:,.0f}")
     print("\n  MC error falls as 1/sqrt(N): a 10x tighter answer costs 100x more.")
-    print("  That cost, across a whole catalog of pairs, is what Phase 3 replaces.")
 
 
 if __name__ == "__main__":

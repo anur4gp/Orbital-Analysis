@@ -1,13 +1,6 @@
-"""Gaussian-process surrogate for log10(Pc) over the encounter-parameter box.
+"""Gaussian-process surrogate for log10(Pc).
 
-Anisotropic (ARD) squared-exponential kernel, hyperparameters by maximizing
-the log marginal likelihood. The GP itself is plain numpy -- a Cholesky
-factorization and two triangular solves -- so the only dependency is scipy's
-optimizer, which CLAUDE.md already anticipates for later phases.
-
-Training targets are log10(Pc) rather than Pc: Pc spans ~13 orders of
-magnitude over the box, so absolute error is meaningless and a GP on the raw
-value would be dominated entirely by the few large-Pc points.
+ARD squared-exponential kernel; hyperparameters by maximum marginal likelihood.
 """
 from __future__ import annotations
 
@@ -18,24 +11,8 @@ from scipy.optimize import minimize
 
 
 def ard_sqexp(xa: np.ndarray, xb: np.ndarray, log_theta: np.ndarray) -> np.ndarray:
-    """Squared-exponential kernel with one length scale per dimension.
-
-    Parameters
-    ----------
-    xa, xb
-        Input points, shape (na, k) and (nb, k), already scaled to the unit
-        cube.
-    log_theta
-        Packs ``[log amplitude, log length scale per dimension]``; working in
-        logs keeps the optimizer unconstrained and the parameters positive.
-
-    Returns
-    -------
-    numpy.ndarray
-        Kernel matrix, shape (na, nb).
-    """
-    # Clipped so the optimizer cannot walk into overflow or a zero length
-    # scale; the marginal likelihood is flat well before these limits.
+    """ARD squared-exponential kernel; ``log_theta = [log amp, log length scales...]``."""
+    # Clipped against overflow and zero length scales.
     amp = np.exp(2.0 * np.clip(log_theta[0], -10.0, 10.0))
     ls = np.exp(np.clip(log_theta[1:], -8.0, 8.0))
     diff = (xa[:, None, :] - xb[None, :, :]) / ls
@@ -57,23 +34,7 @@ class GP:
     def predict(
         self, x_new: np.ndarray, return_std: bool = False
     ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
-        """Posterior mean (and optionally standard deviation) at new points.
-
-        Parameters
-        ----------
-        x_new
-            Query points in the unit cube, shape (n, k) or (k,).
-        return_std
-            Also return the posterior standard deviation.
-
-        Returns
-        -------
-        mean : numpy.ndarray
-            Posterior mean, in the units of the training targets.
-        std : numpy.ndarray, optional
-            Posterior standard deviation, same units. Only when
-            ``return_std`` is true.
-        """
+        """Posterior mean (and std if ``return_std``) at unit-cube points."""
         x_new = np.atleast_2d(x_new)
         k_star = ard_sqexp(x_new, self.x, self.log_theta)
         mean = k_star @ self._alpha * self.y_std + self.y_mean
@@ -99,25 +60,7 @@ def _neg_log_marginal(params: np.ndarray, x: np.ndarray, y: np.ndarray) -> float
 
 def fit_gp(x: np.ndarray, y: np.ndarray, n_restarts: int = 4,
            seed: int = 0) -> GP:
-    """Fit a GP by maximising the log marginal likelihood.
-
-    Parameters
-    ----------
-    x
-        Training inputs in the unit cube, shape (n, k).
-    y
-        Training targets, shape (n,). Standardised internally.
-    n_restarts
-        Optimiser restarts; the likelihood is multimodal in the length
-        scales, so one start is not enough.
-    seed
-        Seed for the restart perturbations, making the fit reproducible.
-
-    Returns
-    -------
-    GP
-        Fitted model, carrying its Cholesky factor and weights.
-    """
+    """Fit a GP to unit-cube inputs by L-BFGS-B with random restarts."""
     x = np.atleast_2d(np.asarray(x, dtype=float))
     y = np.asarray(y, dtype=float)
     y_mean, y_std = float(y.mean()), float(y.std())
@@ -128,8 +71,7 @@ def fit_gp(x: np.ndarray, y: np.ndarray, n_restarts: int = 4,
     rng = np.random.default_rng(seed)
     best: np.ndarray | None = None
     best_val = np.inf
-    # Start from a unit-amplitude, mid-range-length-scale, low-noise guess and
-    # perturb; the marginal likelihood is multimodal in the length scales.
+    # Likelihood is multimodal in the length scales, hence restarts.
     start = np.concatenate([[0.0], np.full(dim, np.log(0.5)), [np.log(1e-3)]])
     for i in range(n_restarts):
         p0 = start if i == 0 else start + rng.normal(0, 0.7, size=start.size)

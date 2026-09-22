@@ -1,16 +1,4 @@
-"""Design points for a campaign, and their mapping to physical settings.
-
-The design is a space-filling Latin hypercube from the RUSIS parallel-
-tempering MaxPro code (:mod:`orbital.surrogate.designs`) -- the same
-machinery Phase 3's surrogate used, not a second sampler. Designs are cached
-static artifacts, so the optimiser never runs on the campaign's hot path.
-
-Because they are artifacts, a MaxPro design of a size that is not cached can
-only be produced where the compiled extension exists. The campaign container
-deliberately ships no compiler, so it can run any *cached* size and fails
-with an explicit message otherwise, rather than silently substituting a
-different design.
-"""
+"""Campaign design points and their mapping to physical settings."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -25,15 +13,13 @@ from orbital.surrogate import designs
 def design_matrix(config: CampaignConfig) -> FloatArray:
     """Design points in the unit cube, shape ``(n_points, dimension)``.
 
-    ``maxpro`` and ``random_lhd`` are Latin hypercubes; ``uniform`` is plain
-    independent sampling, kept as the baseline that shows what the structure
-    buys.
+    Uncached MaxPro sizes need the compiled extension; the container has none.
     """
     n, k = config.n_points, config.dimension
     if config.design == "maxpro":
         try:
             return np.atleast_2d(designs.load_or_generate(n, k))
-        except RuntimeError as exc:  # extension missing and no cached design
+        except RuntimeError as exc:
             raise RuntimeError(
                 f"no cached MaxPro design for n={n}, k={k}, and the "
                 f"pt_maxpro extension is unavailable here. Cached sizes: "

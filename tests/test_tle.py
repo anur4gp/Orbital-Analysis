@@ -1,8 +1,4 @@
-"""TLE parsing: column positions, implied decimals, and epoch handling.
-
-Assertions are against the format specification rather than golden output,
-so a regression points at the rule that broke.
-"""
+"""TLE parsing: column positions, implied decimals, and epoch handling."""
 from __future__ import annotations
 
 from datetime import UTC
@@ -114,13 +110,7 @@ class TestFileParsing:
 
 class TestRejectsMalformedInput:
     def test_mismatched_catalog_numbers(self, iss_lines):
-        """Line 1 and line 2 must agree on which object they describe.
-
-        The altered line has its check digit recomputed, so this exercises the
-        catalog-number comparison rather than tripping the checksum first --
-        which is what an earlier version of this test did, passing for the
-        wrong reason.
-        """
+        """Check digit is recomputed so the checksum does not trip first."""
         _, l1, l2 = iss_lines
         altered = l2.replace("2 25544", "2 25545")[:68]
         altered += str(checksum(altered))

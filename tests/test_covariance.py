@@ -1,10 +1,4 @@
-"""RTN frame construction and covariance rotation.
-
-Rotation is an orthogonal similarity transform, so trace, determinant and
-eigenvalues are invariant. Those invariants are the assertions here -- they
-hold for any correct implementation, so they do not need updating when
-constants change.
-"""
+"""RTN frame construction and covariance rotation."""
 from __future__ import annotations
 
 import numpy as np
@@ -123,9 +117,6 @@ class TestSampling:
         assert np.allclose(np.cov(draws, rowvar=False), c, rtol=0.03, atol=1e-3)
 
     def test_singular_covariance_does_not_raise(self, rng):
-        """A degenerate covariance has no Cholesky factor; the eigen fallback
-        must carry it.
-        """
         singular = np.diag([1.0, 1.0, 0.0])
         draws = sample_relative_offsets(singular, 64, rng)
         assert draws.shape == (64, 3)

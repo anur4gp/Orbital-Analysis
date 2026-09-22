@@ -1,15 +1,8 @@
-"""Executing a campaign: one design point at a time, in parallel or sharded.
+"""Campaign execution, parallel or sharded.
 
-Determinism is the design constraint. Each point derives its own random
-stream from ``(seed, index)``, so a point's rows never depend on how many
-workers ran, in what order they finished, or which shard owned it. That is
-what makes a local 8-core run and a 20-container batch array interchangeable
--- and it is asserted in the tests, not assumed.
-
-Callers must be import-safe: with more than one worker the pool uses the
-"spawn" start method, so child processes import the calling module. A script
-that runs a campaign at module level (no ``if __name__ == "__main__"``
-guard) re-runs itself in every child.
+Each point seeds from ``(seed, index)``, so results are independent of worker
+count, order and sharding. Workers use "spawn": callers need an
+``if __name__ == "__main__"`` guard.
 """
 from __future__ import annotations
 
@@ -39,14 +32,7 @@ _FILTER_TYPES = {"EKF": EKF, "UKF": UKF}
 
 
 def available_cpus() -> int:
-    """Usable CPUs: the affinity mask where the platform reports one.
-
-    ``os.cpu_count()`` reports the host's cores, which over-counts inside a
-    container restricted to fewer vCPUs. The affinity mask reflects the
-    restriction on Linux; macOS has no such call, and a CPU *quota* (as
-    opposed to a CPU set) is invisible either way, which is why the batch
-    documentation says to pass ``--workers`` explicitly.
-    """
+    """Usable CPUs from the affinity mask where available (CPU quotas are not visible)."""
     if hasattr(os, "sched_getaffinity"):
         return len(os.sched_getaffinity(0))
     return os.cpu_count() or 1
@@ -59,19 +45,7 @@ def build_filters(config: CampaignConfig) -> list[SequentialFilter]:
 
 
 def point_scenario(config: CampaignConfig, settings: PointSettings) -> Scenario:
-    """Build the tracking scenario for one design point.
-
-    Parameters
-    ----------
-    config
-        The campaign, supplying the orbit and arc length.
-    settings
-        Physical parameter values at this design point.
-
-    Returns
-    -------
-    Scenario
-    """
+    """Tracking scenario for one design point."""
     a = config.semi_major_axis_km
     period_s = 2.0 * np.pi * np.sqrt(a**3 / MU_EARTH_KM3_S2)
     t_grid = np.arange(0.0, config.revolutions * period_s, settings.cadence_s)
@@ -92,41 +66,12 @@ def point_scenario(config: CampaignConfig, settings: PointSettings) -> Scenario:
 
 
 def point_seed(config: CampaignConfig, index: int) -> int:
-    """Stream seed for one design point: order- and worker-independent.
-
-    Parameters
-    ----------
-    config
-        The campaign, supplying the base seed.
-    index
-        Design-point index.
-
-    Returns
-    -------
-    int
-        Seed derived from ``(seed, index)``.
-    """
+    """Seed for one design point, derived from ``(seed, index)``."""
     return int(np.random.SeedSequence([config.seed, index]).generate_state(1)[0])
 
 
 def run_point(index: int, config: CampaignConfig) -> list[dict[str, Any]]:
-    """Run every filter at one design point; one row per filter.
-
-    Rows carry the point's physical parameters, so the parquet file is
-    self-describing without joining back to the design.
-
-    Parameters
-    ----------
-    index
-        Design-point index.
-    config
-        The campaign.
-
-    Returns
-    -------
-    list of dict
-        One row per filter.
-    """
+    """Run every filter at one design point; one row per filter."""
     settings = settings_for(design_matrix(config)[index])
     scenario = point_scenario(config, settings)
     results = monte_carlo(scenario, build_filters(config), config.n_trials,
@@ -143,7 +88,6 @@ def run_point(index: int, config: CampaignConfig) -> list[dict[str, Any]]:
             "point": index,
             "filter": name,
             **settings.to_dict(),
-            # One entry per processed observation, whatever its dimension.
             "n_observations": int((r.nis_dof > 0).sum()),
             "nees_end": float(nees[-1]),
             "nees_max": float(nees.max()),
@@ -161,30 +105,7 @@ def run_point(index: int, config: CampaignConfig) -> list[dict[str, Any]]:
 
 
 def shard_indices(n_points: int, shard: int, shards: int) -> list[int]:
-    """Design-point indices owned by ``shard``, round-robin over ``shards``.
-
-    Round-robin rather than contiguous blocks: cost per point varies with
-    cadence and mask, so interleaving keeps shards closer in runtime.
-
-    Parameters
-    ----------
-    n_points
-        Design size.
-    shard
-        Zero-based shard index.
-    shards
-        Total shards.
-
-    Returns
-    -------
-    list of int
-        Design-point indices owned by this shard.
-
-    Raises
-    ------
-    ValueError
-        If ``shard`` is outside ``0..shards - 1``.
-    """
+    """Design-point indices owned by ``shard``, round-robin to balance runtime."""
     if not 0 <= shard < shards:
         raise ValueError(f"shard {shard} outside 0..{shards - 1}")
     return list(range(shard, n_points, shards))
@@ -209,8 +130,7 @@ def run_campaign(
     config
         The campaign.
     workers
-        Process count. ``None`` uses :func:`available_cpus`; 1 runs
-        in-process, which keeps tracebacks readable while debugging.
+        Process count; ``None`` uses :func:`available_cpus`, 1 runs in-process.
     shard, shards
         Which slice of the design to run. Defaults run everything.
     indices
@@ -229,8 +149,7 @@ def run_campaign(
     if workers == 1:
         stream = (run_point(i, config) for i in todo)
     else:
-        # "spawn": fork with numpy/BLAS threads already started is unsafe on
-        # macOS and deadlocks on some Linux builds.
+        # fork after BLAS threads start is unsafe on macOS and some Linux builds.
         pool = get_context("spawn").Pool(workers)
         stream = pool.imap_unordered(_worker, [(i, config) for i in todo], chunksize=1)
 

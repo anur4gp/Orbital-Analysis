@@ -1,15 +1,11 @@
-"""The 13-element rigid-body state and its packing.
+"""13-element rigid-body state.
 
-Layout of the flat vector used by the integrators::
+Packed layout::
 
-    y[0:3]    r      position of the centre of mass, km, ECI_J2000
-    y[3:6]    v      velocity, km/s, ECI_J2000
-    y[6:10]   q      attitude quaternion BODY -> ECI_J2000, scalar first
-    y[10:13]  omega  body angular velocity w.r.t. inertial, rad/s, BODY axes
-
-Mixing km for translation with SI for rotation is safe because the two blocks
-only meet in the gravity-gradient torque, whose factor ``mu / r**3`` has units
-of 1/s^2 regardless of the length unit.
+    y[0:3]    r      km, ECI_J2000
+    y[3:6]    v      km/s, ECI_J2000
+    y[6:10]   q      BODY -> ECI_J2000, scalar first
+    y[10:13]  omega  rad/s, BODY axes
 """
 from __future__ import annotations
 
@@ -49,8 +45,7 @@ class RigidBodyState:
     t_s
         Time since the reference epoch, s.
     frame
-        Frame of ``r``, ``v`` and the target frame of ``q``. The dynamics
-        require an inertial frame and reject anything else.
+        Frame of ``r``, ``v`` and the target frame of ``q``.
     """
 
     r_km: FloatArray
@@ -74,21 +69,7 @@ class RigidBodyState:
     def from_vector(
         cls, y: ArrayLike, t_s: float = 0.0, frame: Frame = Frame.ECI_J2000
     ) -> RigidBodyState:
-        """Unpack a 13-element vector. The quaternion is normalised.
-
-        Parameters
-        ----------
-        y
-            Packed state, shape (13,); see the module docstring for layout.
-        t_s
-            Time since the reference epoch, s.
-        frame
-            Frame of the translational states.
-
-        Returns
-        -------
-        RigidBodyState
-        """
+        """Unpack a 13-element vector; the quaternion is normalised."""
         arr = np.asarray(y, dtype=float)
         if arr.shape != (STATE_SIZE,):
             raise ValueError(f"state vector must have shape ({STATE_SIZE},), got {arr.shape}")

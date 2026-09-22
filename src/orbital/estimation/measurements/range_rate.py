@@ -1,18 +1,9 @@
 """Two-way range and range-rate from a ground station.
 
-With ``rho = r - r_s`` and ``rho_dot_vec = v - v_s`` (both ECI_J2000)::
-
-    range       rho     = |rho|                                 km
-    range-rate  rhodot  = rho_hat . (v - v_s)                   km/s
-
-Partials (station fixed on the rotating Earth, so independent of x)::
-
-    d rho    / d r = rho_hat^T            d rho    / d v = 0
+    rho = |r - r_s|,  rhodot = rho_hat . (v - v_s)
     d rhodot / d r = (v_rel - rhodot rho_hat)^T / rho
-    d rhodot / d v = rho_hat^T
 
-Light time and atmospheric delays are not modelled; the truth simulation
-uses the same instantaneous geometry, so the omission is self-consistent.
+Light time and atmospheric delay are not modelled.
 """
 from __future__ import annotations
 
@@ -68,7 +59,7 @@ class RangeRangeRate:
         return np.array([rho, float(rho_vec @ v_rel) / rho])
 
     def jacobian(self, t_s: float, x: FloatArray) -> FloatArray:
-        """Analytic dh/dx, shape (2, 6). See the module docstring for the partials."""
+        """Analytic dh/dx, shape (2, 6)."""
         rho_vec, v_rel, rho = self._geometry(t_s, x)
         u = rho_vec / rho
         rho_dot = float(u @ v_rel)

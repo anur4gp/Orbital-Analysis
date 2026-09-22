@@ -1,15 +1,6 @@
-"""Phase 5: generate the paper's figures.
+"""Report figures 1-4 (vector PDF + PNG).
 
-Palette is slots 1-3 of the reference categorical theme (blue / orange /
-aqua), which is the documented all-pairs-safe subset. Aqua falls below 3:1
-contrast on a white surface, so every series carries a visible direct label;
-markers and dash patterns give a second, non-colour channel for print and
-colour-vision deficiency.
-
-Figures are vector PDF for LaTeX plus PNG for quick viewing. Expensive
-results are cached to data/figure_data.json -- rerun with --force to refresh.
-
-Run: python scripts/make_figures.py [--force]
+Expensive data is cached in data/figure_data.json. Run: python scripts/make_figures.py [--force]
 """
 from __future__ import annotations
 
@@ -36,7 +27,7 @@ SERIES = [
     (AQUA, "^", ":"),
 ]
 
-# Measured in Phase 2 on a representative real conjunction.
+# Measured on a representative real conjunction (run_montecarlo.py).
 PC_REF = 4.5072e-6
 DRAWS_FOR_10PCT = 22_186_681
 CATALOG_SIZE = 337_789
@@ -55,7 +46,7 @@ def style() -> None:
         "axes.edgecolor": MUTED,
         "axes.linewidth": 0.8,
         "axes.grid": True,
-        "axes.axisbelow": True,          # recessive grid, behind the marks
+        "axes.axisbelow": True,
         "grid.color": "#e3e2dd",
         "grid.linewidth": 0.6,
         "legend.frameon": False,
@@ -79,18 +70,16 @@ def compute(force: bool = False) -> dict:
     if CACHE.exists() and not force:
         return json.loads(CACHE.read_text())
 
-    from designs import generate_maxpro, random_lhd, uniform_sample
-    from montecarlo import pc_analytic, pc_monte_carlo
-    from paramspace import DIM_4D, from_unit_cube_4d, unpack_4d
-    from surrogate import fit_gp
+    from orbital.conjunction.probability import pc_analytic, pc_monte_carlo
+    from orbital.surrogate.designs import generate_maxpro, random_lhd, uniform_sample
+    from orbital.surrogate.gp import fit_gp
+    from orbital.surrogate.paramspace import DIM_4D, from_unit_cube_4d, unpack_4d
 
     rng = np.random.default_rng(11)
     out: dict = {}
 
-    # --- Monte Carlo convergence on one representative encounter ---
-    # Chosen to match the Pc of the real conjunction measured in Phase 2;
-    # picking an arbitrary box point gives Pc ~ 1e-15, where every budget
-    # returns zero hits and there is no convergence to show.
+    # MC convergence on an encounter matched to PC_REF (random points are often
+    # ~1e-15, where no budget gets a hit).
     grid = rng.random((20000, DIM_4D))
     pcs = np.array([pc_analytic(*unpack_4d(r)) for r in from_unit_cube_4d(grid)])
     best = int(np.argmin(np.abs(np.log10(np.maximum(pcs, 1e-300)) - np.log10(PC_REF))))
@@ -105,7 +94,6 @@ def compute(force: bool = False) -> dict:
         estimates.append(est.pc)
     out["mc"] = {"truth": truth, "draws": draws, "estimates": estimates}
 
-    # --- Pc dynamic range over the design box ---
     u = rng.random((4000, DIM_4D))
     logs = []
     for row in from_unit_cube_4d(u):
@@ -113,7 +101,6 @@ def compute(force: bool = False) -> dict:
         logs.append(np.log10(max(pc_analytic(m, c, h), 1e-300)))
     out["pc_distribution"] = logs
 
-    # --- Surrogate accuracy vs training budget ---
     u_test = rng.random((3000, DIM_4D))
     y_test = np.array([np.log10(max(pc_analytic(*unpack_4d(r)), 1e-300))
                        for r in from_unit_cube_4d(u_test)])
@@ -177,10 +164,8 @@ def fig_motivation(data: dict) -> None:
     logs = np.array(data["pc_distribution"])
     counts, _, _ = ax2.hist(logs, bins=45, color=BLUE, edgecolor="white",
                             linewidth=0.4)
-    # Headroom so the budget labels sit above the bars rather than on them.
     ax2.set_ylim(0, counts.max() * 1.42)
-    # Staggered vertically: the two reach lines sit only two decades apart,
-    # so side-by-side labels would collide.
+    # Labels staggered vertically to avoid collision.
     for budget, label, height in ((1e8, "$10^8$ draws", 1.20),
                                   (1e6, "$10^6$ draws", 1.05)):
         reach = np.log10(10.0 / budget)          # ~10 expected hits
@@ -218,9 +203,6 @@ def fig_surrogate(data: dict) -> None:
         ax.errorbar(n, rmse, yerr=spread, color=color, lw=1.8, ls=ls,
                     marker=marker, ms=5.5, capsize=2.5, elinewidth=1.0,
                     label=labels[name], zorder=3)
-    # No direct labels here: the three series converge at n=256, so end-of-line
-    # labels collide. Identity is carried by marker shape and dash pattern as
-    # well as hue, and the paper prints these values as a table.
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xticks([32, 64, 128, 256])
@@ -275,15 +257,16 @@ def fig_cost() -> None:
 
 def fig_triage() -> None:
     """Triage operating curves: catalog kept vs high-risk events retained."""
-    from dataset import FEATURES
     from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
 
+    from orbital.triage.features import FEATURES
+
     path = ROOT / "data" / "triage_dataset.csv"
     if not path.exists():
-        print("  (skipping fig4: run src/build_dataset.py first)")
+        print("  (skipping fig4: run scripts/build_dataset.py first)")
         return
 
     raw = np.genfromtxt(path, delimiter=",", names=True, dtype=None, encoding="utf-8")
@@ -312,7 +295,6 @@ def fig_triage() -> None:
         kept = np.arange(1, len(s) + 1) / len(s)
         recall = np.cumsum(pos[order]) / pos.sum()
         ax.plot(recall, kept, color=color, lw=1.8, ls=ls, label=name, zorder=3)
-        # Direct label at the full-recall end of each curve.
         idx = int(np.searchsorted(recall, 1.0))
         idx = min(idx, len(kept) - 1)
         ax.plot([recall[idx]], [kept[idx]], marker=marker, ms=6, color=color, zorder=4)

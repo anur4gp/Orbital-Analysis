@@ -1,10 +1,4 @@
-"""Building encounter-plane cases from screening records.
-
-``build_cases`` is the one place where the Space-Track client, the event
-parser, SGP4 and the covariance projection meet, so it is worth a test. The
-client is replaced by a stub: the point is the wiring and the filtering, not
-the network.
-"""
+"""Building encounter-plane cases from screening records."""
 from __future__ import annotations
 
 import numpy as np
@@ -91,8 +85,7 @@ class TestBuildCases:
         assert stub.entered and stub.exited
 
     def test_respects_the_limit(self, stub, iss_tle):
-        # Hours apart, so deduplication treats them as separate conjunctions
-        # rather than refilings of one.
+        # Hours apart, so not merged by deduplication.
         stub.rows = [
             event_row(i, iss_tle.catalog_number, 90100,
                       tca=f"2024-04-26T{12 + i:02d}:25:00.000000")
@@ -101,9 +94,6 @@ class TestBuildCases:
         assert len(build_cases(limit=2)) == 2
 
     def test_skips_slow_encounters(self, stub):
-        """Below the floor the short-term encounter model does not apply, so
-        the case must be dropped rather than silently mismodelled.
-        """
         assert build_cases(limit=5, min_vrel_km_s=100.0) == []
 
     def test_skips_events_whose_element_sets_are_missing(self, stub, iss_tle):

@@ -1,21 +1,8 @@
 """Quaternion algebra and attitude kinematics.
 
-A unit quaternion ``q = [w, x, y, z]`` (scalar first, Hamilton product)
-represents the rotation that takes a vector expressed in BODY axes to the same
-vector expressed in the inertial frame:
-
-    v_I = q ⊗ [0, v_B] ⊗ q*
-
-With the body angular velocity ``omega_B`` (rad/s, BODY axes, relative to
-inertial), the kinematics are
-
-    dq/dt = 1/2 q ⊗ [0, omega_B]
-
-That equation preserves ``|q|`` exactly, but a numerical integrator does not:
-each step leaks a truncation error into the norm. The drift is handled by the
-integrators' constraint projection (see :mod:`orbital.integrators.base`), not
-hidden here -- :func:`kinematics` integrates whatever it is given, so the drift
-stays measurable.
+``q = [w, x, y, z]`` (Hamilton) rotates BODY into inertial:
+``v_I = q ⊗ [0, v_B] ⊗ q*`` and ``dq/dt = 1/2 q ⊗ [0, omega_B]``.
+Norm drift is handled by the integrators' constraint projection, not here.
 """
 from __future__ import annotations
 
@@ -41,13 +28,7 @@ def norm_error(q: ArrayLike) -> float:
 
 
 def normalize(q: ArrayLike) -> FloatArray:
-    """Project ``q`` onto the unit sphere.
-
-    Raises
-    ------
-    ValueError
-        If ``q`` is (numerically) zero, which has no meaningful direction.
-    """
+    """Project ``q`` onto the unit sphere."""
     arr = as_quaternion(q)
     n = float(np.linalg.norm(arr))
     if n < 1e-12:
@@ -56,10 +37,7 @@ def normalize(q: ArrayLike) -> FloatArray:
 
 
 def canonical(q: ArrayLike) -> FloatArray:
-    """Return the representative of ``{q, -q}`` with ``w >= 0``.
-
-    ``q`` and ``-q`` are the same rotation; comparisons should use this form.
-    """
+    """Representative of ``{q, -q}`` with ``w >= 0``."""
     arr = as_quaternion(q)
     return -arr if arr[0] < 0.0 else arr
 
@@ -71,20 +49,7 @@ def conjugate(q: ArrayLike) -> FloatArray:
 
 
 def multiply(p: ArrayLike, q: ArrayLike) -> FloatArray:
-    """Hamilton product ``p ⊗ q``.
-
-    Composition order: ``p ⊗ q`` applies ``q`` first, then ``p``.
-
-    Parameters
-    ----------
-    p, q
-        Quaternions, scalar first, shape (4,).
-
-    Returns
-    -------
-    numpy.ndarray
-        The product, shape (4,).
-    """
+    """Hamilton product ``p ⊗ q`` (applies ``q`` first, then ``p``)."""
     pw, px, py, pz = as_quaternion(p)
     qw, qx, qy, qz = as_quaternion(q)
     return np.array([
@@ -96,15 +61,7 @@ def multiply(p: ArrayLike, q: ArrayLike) -> FloatArray:
 
 
 def from_axis_angle(axis: ArrayLike, angle_rad: float) -> FloatArray:
-    """Unit quaternion for a right-handed rotation of ``angle_rad`` about ``axis``.
-
-    Parameters
-    ----------
-    axis
-        Rotation axis, any non-zero length (normalised here).
-    angle_rad
-        Rotation angle, rad.
-    """
+    """Unit quaternion for a right-handed rotation of ``angle_rad`` about ``axis``."""
     a = np.asarray(axis, dtype=float)
     n = float(np.linalg.norm(a))
     if a.shape != (3,) or n < 1e-12:
@@ -114,30 +71,13 @@ def from_axis_angle(axis: ArrayLike, angle_rad: float) -> FloatArray:
 
 
 def rotation_angle(q: ArrayLike) -> float:
-    """Magnitude of the rotation represented by ``q``, rad, in ``[0, pi]``.
-
-    Uses ``atan2`` rather than ``acos(w)``, which loses precision near zero
-    -- exactly where attitude-error comparisons live.
-    """
+    """Rotation magnitude, rad, in ``[0, pi]`` (atan2 form, accurate near zero)."""
     c = canonical(normalize(q))
     return 2.0 * float(np.arctan2(np.linalg.norm(c[1:]), c[0]))
 
 
 def rotate(q: ArrayLike, v_body: ArrayLike) -> FloatArray:
-    """Express a BODY-frame vector in the inertial frame: ``q ⊗ v ⊗ q*``.
-
-    Parameters
-    ----------
-    q
-        Attitude quaternion, BODY to inertial, unit norm, shape (4,).
-    v_body
-        Vector in BODY axes, shape (3,), any units.
-
-    Returns
-    -------
-    numpy.ndarray
-        The same vector in inertial axes, shape (3,), units of ``v_body``.
-    """
+    """Express a BODY-frame vector in the inertial frame: ``q ⊗ v ⊗ q*``."""
     v = np.asarray(v_body, dtype=float)
     qv = np.concatenate([[0.0], v])
     return multiply(multiply(q, qv), conjugate(q))[1:]
@@ -149,7 +89,7 @@ def kinematics(q: ArrayLike, omega_body_rad_s: ArrayLike) -> FloatArray:
     Parameters
     ----------
     q
-        Attitude, BODY -> inertial. Deliberately not normalised here.
+        Attitude, BODY -> inertial (not normalised here).
     omega_body_rad_s
         Angular velocity of BODY relative to inertial, in BODY axes, rad/s.
     """

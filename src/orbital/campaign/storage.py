@@ -1,13 +1,7 @@
-"""Persistence: parquet rows plus the config that produced them.
+"""Campaign persistence.
 
-A campaign directory holds
-
-    runs.parquet      one row per (design point, filter), with the physical
-                      parameter values and the config fingerprint on every row
-    config.json       the config, its fingerprint, and provenance
-
-Shards write ``runs.shard<i>of<n>.parquet`` into the same directory and are
-merged afterwards, which is what lets the same image run as a batch array job.
+Rows go to ``runs.parquet`` (or ``runs.shard<i>of<n>.parquet``), the config,
+fingerprint and provenance to ``config.json``.
 """
 from __future__ import annotations
 
@@ -24,19 +18,7 @@ RUNS_NAME = "runs.parquet"
 
 
 def shard_name(shard: int, shards: int) -> str:
-    """File name for one shard's rows.
-
-    Parameters
-    ----------
-    shard
-        Zero-based shard index.
-    shards
-        Total shards; 1 gives the unsharded name.
-
-    Returns
-    -------
-    str
-    """
+    """File name for one shard's rows."""
     return RUNS_NAME if shards == 1 else f"runs.shard{shard}of{shards}.parquet"
 
 
@@ -48,26 +30,7 @@ def write_runs(
     shards: int = 1,
     provenance: Provenance | None = None,
 ) -> Path:
-    """Write rows as parquet and the config as JSON.
-
-    Parameters
-    ----------
-    rows
-        One row per (design point, filter).
-    config
-        The campaign that produced them.
-    out_dir
-        Destination directory, created if absent.
-    shard, shards
-        Which slice these rows are, deciding the file name.
-    provenance
-        Environment record; a fresh one is captured when omitted.
-
-    Returns
-    -------
-    pathlib.Path
-        Path of the parquet file written.
-    """
+    """Write rows as parquet and the config as JSON; returns the parquet path."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / shard_name(shard, shards)
@@ -91,13 +54,7 @@ def read_runs(out_dir: Path) -> tuple[pd.DataFrame, CampaignConfig, dict[str, An
 
 
 def merge_shards(out_dir: Path) -> pd.DataFrame:
-    """Concatenate every parquet file in ``out_dir``, ordered by design point.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the directory holds no parquet files.
-    """
+    """Concatenate every parquet file in ``out_dir``, ordered by design point."""
     paths = sorted(Path(out_dir).glob("runs*.parquet"))
     if not paths:
         raise FileNotFoundError(f"no runs*.parquet in {out_dir}")
@@ -106,11 +63,7 @@ def merge_shards(out_dir: Path) -> pd.DataFrame:
 
 
 def summarize(rows: pd.DataFrame) -> pd.DataFrame:
-    """Per-filter summary: consistency rate and typical accuracy.
-
-    Medians, not means: NEES spans orders of magnitude across the design, so
-    a mean is dominated by its worst points.
-    """
+    """Per-filter consistency rate and median accuracy (NEES is heavy-tailed)."""
     grouped = rows.groupby("filter")
     return pd.DataFrame({
         "points": grouped.size(),

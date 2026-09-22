@@ -1,11 +1,4 @@
-"""The Gaussian-process surrogate, checked against GP identities.
-
-A noise-free GP interpolates its training data and has zero posterior
-variance there; a GP with a long length scale reproduces a linear trend; the
-kernel is symmetric positive semi-definite; and the fitted marginal
-likelihood is never worse than the starting guess. Those hold for any correct
-implementation, so none of them is a stored number.
-"""
+"""The Gaussian-process surrogate, checked against GP identities."""
 from __future__ import annotations
 
 import numpy as np
@@ -45,9 +38,6 @@ class TestKernel:
         assert 1.0 > near > far > 0.0
 
     def test_per_dimension_length_scales(self):
-        """A short scale in dimension 0 and long in 1: the same offset
-        decorrelates far more in 0.
-        """
         log_theta = np.array([0.0, np.log(0.1), np.log(10.0)])
         origin = np.array([[0.0, 0.0]])
         assert (ard_sqexp(origin, np.array([[0.5, 0.0]]), log_theta)[0, 0]
@@ -114,9 +104,6 @@ class TestFitAndPredict:
         assert np.allclose(a.predict(x), b.predict(x))
 
     def test_restarts_do_not_worsen_the_likelihood(self, training):
-        """More restarts search a multimodal surface; the best found cannot
-        get worse.
-        """
         x, y = training
         y_s = (y - y.mean()) / y.std()
         one = fit_gp(x, y, n_restarts=1)
@@ -136,17 +123,11 @@ class TestFitAndPredict:
 
 class TestMarginalLikelihood:
     def test_jitter_survives_duplicate_points(self):
-        """Repeated inputs make the kernel singular in exact arithmetic; the
-        1e-10 jitter is what keeps the Cholesky feasible.
-        """
         x = np.zeros((3, 2))
         params = np.array([0.0, 0.0, 0.0, -50.0])
         assert np.isfinite(_neg_log_marginal(params, x, np.zeros(3)))
 
     def test_hopeless_kernel_returns_a_large_penalty(self):
-        """50 duplicate points at amplitude e^20 defeat the jitter; the
-        optimiser must be steered away rather than crash.
-        """
         x = np.zeros((50, 2))
         params = np.array([10.0, 0.0, 0.0, -50.0])
         assert _neg_log_marginal(params, x, np.zeros(50)) == pytest.approx(1e12)

@@ -1,10 +1,7 @@
-"""Mass properties: validated inertia tensors.
+"""Validated inertia tensors.
 
-A symmetric positive-definite matrix is not automatically a physical inertia
-tensor. Principal moments of any real mass distribution also satisfy the
-triangle inequality ``I_i <= I_j + I_k``, because ``I_j + I_k - I_i`` is twice
-a second moment of mass. Tensors that violate it are rejected here, since
-Euler's equations integrate them without complaint and give nonsense.
+Beyond symmetric positive-definite, principal moments must satisfy the
+triangle inequality ``I_i <= I_j + I_k`` to be physical.
 """
 from __future__ import annotations
 

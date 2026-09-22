@@ -1,13 +1,4 @@
-"""Build the Phase 4 triage dataset by screening debris catalogs.
-
-Screens several debris families over a multi-day window and labels every
-conjunction with log10(Pc). Debris clouds are the right hunting ground: they
-are dense and co-orbital, so they generate far more close approaches per
-object than a general catalog.
-
-The window is processed one day at a time. Holding 1971 objects x 7 days of
-positions and velocities at 60 s cadence would need ~950 MB; a day at a time
-needs ~140 MB.
+"""Build the triage dataset by screening debris catalogs one day at a time.
 
 Run: python scripts/build_dataset.py
 """

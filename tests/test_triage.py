@@ -1,9 +1,4 @@
-"""Triage features, labels, and full-recall evaluation.
-
-The operating point is checked on hand-built score arrays where the right
-answer is countable by hand, and the features on synthetic conjunctions whose
-geometry is known (coplanar, perpendicular, head-on).
-"""
+"""Triage features, labels, and full-recall evaluation."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -80,9 +75,6 @@ class TestFeatures:
         assert f["period_diff_min"] == pytest.approx(0.0)
 
     def test_uses_the_worse_element_set(self, iss_tle):
-        """Staleness and drag are maxima, because the worse TLE dominates the
-        error.
-        """
         c = conjunction()
         f = features_for(c, iss_tle, iss_tle)
         assert f["tle_age_max_d"] == pytest.approx(abs(iss_tle.age_days(TCA)))
@@ -115,9 +107,6 @@ class TestLabels:
         assert log10_pc_for(c, sigma_r_km=10.0) < log10_pc_for(c, sigma_r_km=0.1)
 
     def test_labels_stay_in_log_space(self):
-        """Screened misses are routinely tens of sigma out, where Pc
-        underflows; the label must stay finite and ordered.
-        """
         value = log10_pc_for(conjunction(miss_km=45.0))
         assert np.isfinite(value)
         assert value < -10
@@ -158,9 +147,6 @@ class TestFullRecall:
         assert r.reduction == 0.5
 
     def test_useless_ranker_keeps_everything(self):
-        """The lowest-scoring object is a positive, so full recall forces the
-        threshold to the bottom.
-        """
         scores = np.array([0.1, 0.2, 0.9, 0.95])
         labels = np.array([1, 0, 0, 0])
         r = full_recall_operating_point(scores, labels, "useless")
@@ -182,9 +168,6 @@ class TestFullRecall:
         assert np.isnan(r.recall)
 
     def test_ties_at_the_threshold_are_kept(self):
-        """Keeping is `score >= cutoff`, so tied negatives cannot be dropped
-        without losing the positive.
-        """
         scores = np.array([0.5, 0.5, 0.9])
         labels = np.array([1, 0, 0])
         assert full_recall_operating_point(scores, labels, "ties").n_kept == 3

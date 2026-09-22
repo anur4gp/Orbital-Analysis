@@ -1,10 +1,4 @@
-"""SGP4 wrappers, checked against orbital mechanics rather than stored output.
-
-Everything here is offline: the frozen ISS element set from ``conftest`` is
-propagated locally, and the assertions are Kepler's third law, vis-viva, and
-the documented ISS orbit (about 400-430 km altitude, 92-93 min period,
-51.6 degree inclination).
-"""
+"""SGP4 wrappers, checked against orbital mechanics rather than stored output."""
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -35,8 +29,7 @@ def with_checksum(line: str) -> str:
     return body + str(checksum(body))
 
 
-# A decayed element set: mean motion of 20 rev/day puts perigee below the
-# surface, so SGP4 must report an error rather than return a position.
+# 20 rev/day puts perigee below the surface; SGP4 must return an error.
 DECAYED_L1 = with_checksum(
     "1 00900U 64063C   24117.50000000  .00000000  00000-0  00000-0 0  999"
 )
@@ -72,9 +65,6 @@ class TestDerivedElements:
         assert 92.0 < period_minutes(iss_sat) < 93.0
 
     def test_semi_major_axis_satisfies_keplers_third_law(self, iss_sat):
-        """T = 2 pi sqrt(a^3 / mu) must hold for the two independently
-        computed quantities.
-        """
         a = semi_major_axis_km(iss_sat)
         t_s = period_minutes(iss_sat) * 60.0
         assert t_s == pytest.approx(2 * np.pi * np.sqrt(a**3 / MU_EARTH), rel=1e-12)
@@ -103,10 +93,7 @@ class TestPropagation:
         assert 7.5 < np.linalg.norm(v) < 7.8
 
     def test_energy_is_conserved_over_three_days(self, iss_sat, epoch):
-        """Vis-viva: v^2/2 - mu/r stays put to the extent SGP4's own
-        perturbations allow. Drag and J2 make this approximate, so the bound
-        is loose but still a physics check rather than a stored number.
-        """
+        """Vis-viva; loose bound since SGP4 includes drag and J2."""
         times, r, v, _ = propagate_series(iss_sat, epoch, 3 * 1440.0, 10.0)
         energy = 0.5 * np.einsum("ij,ij->i", v, v) - MU_EARTH / radius_km(r)
         assert np.ptp(energy) / abs(energy.mean()) < 0.01
@@ -125,10 +112,7 @@ class TestPropagation:
         assert measured == pytest.approx(period_minutes(iss_sat), abs=0.3)
 
     def test_inclination_has_no_secular_drift(self, iss_sat, epoch):
-        """J2 regresses the node and makes inclination oscillate (about
-        0.02 deg here), but produces no secular change -- so the mean over
-        the first half of the arc matches the mean over the second.
-        """
+        """J2 makes inclination oscillate (~0.02 deg) but not drift."""
         _, r, v, _ = propagate_series(iss_sat, epoch, 1440.0, 5.0)
         h = np.cross(r, v)
         incl = np.degrees(np.arccos(h[:, 2] / np.linalg.norm(h, axis=1)))

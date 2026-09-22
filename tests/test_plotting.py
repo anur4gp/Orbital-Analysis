@@ -1,9 +1,4 @@
-"""Shared figure styling.
-
-Figures themselves are judged by looking at them; what is testable is that
-the style applies, the palette is the documented one, and ``save`` writes
-both formats reproducibly.
-"""
+"""Shared figure styling."""
 from __future__ import annotations
 
 import matplotlib
@@ -55,9 +50,6 @@ def test_save_writes_vector_and_raster(figure, tmp_path, monkeypatch):
 
 
 def test_saved_pdf_is_byte_identical_on_a_rerun(figure, tmp_path, monkeypatch):
-    """The creation date is stripped, so regenerating an unchanged figure
-    leaves the file out of the git diff.
-    """
     monkeypatch.setattr(plotting, "FIGURE_DIR", tmp_path)
     fig, ax = figure
     ax.plot([0, 1], [1, 0])

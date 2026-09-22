@@ -1,9 +1,4 @@
-"""CelesTrak TLE retrieval with local caching.
-
-CelesTrak refreshes its GP data every ~2 hours and rate-limits/blocks
-aggressive clients, so every pull goes through the on-disk cache in
-`data/tle_cache/` and refetches only when the cached copy is stale.
-"""
+"""CelesTrak GP fetch, cached in ``data/tle_cache/`` (CelesTrak refreshes every ~2 h)."""
 from __future__ import annotations
 
 import time
@@ -39,38 +34,9 @@ def fetch_gp(
     force: bool = False,
     timeout: float = 30.0,
 ) -> str:
-    """Raw TLE text for one satellite or one group.
+    """Raw TLE text for one ``catnr`` or one ``group`` (exactly one).
 
-    Served from cache unless the cached copy is older than ``max_age_hours``.
-    If the network call fails but a stale cache exists, the stale copy is
-    returned rather than failing outright -- CelesTrak throttles hard, and a
-    slightly old element set beats no element set.
-
-    Parameters
-    ----------
-    catnr
-        NORAD catalog number. Mutually exclusive with ``group``.
-    group
-        CelesTrak group name, e.g. ``stations``.
-    max_age_hours
-        Cache freshness window, hours. CelesTrak itself refreshes every 2 h.
-    force
-        Refetch even when the cache is fresh.
-    timeout
-        HTTP timeout, s.
-
-    Returns
-    -------
-    str
-        TLE text as served.
-
-    Raises
-    ------
-    ValueError
-        If neither or both of ``catnr`` and ``group`` are given.
-    RuntimeError
-        If the response carries no TLE data, which CelesTrak returns with
-        HTTP 200 when a query matches nothing or the client is throttled.
+    Served from cache when fresh; falls back to a stale cache on network error.
     """
     key: str
     value: str | int
@@ -95,11 +61,10 @@ def fetch_gp(
         text = response.text
     except requests.RequestException:
         if path.exists():
-            return path.read_text()   # stale beats nothing
+            return path.read_text()
         raise
 
-    # CelesTrak returns 200 with a plaintext message, not an error status,
-    # when a query matches nothing or the client is being throttled.
+    # No-match and throttling both come back as HTTP 200 with a plaintext message.
     if not text.lstrip().startswith(("0 ", "1 ")) and "\n1 " not in text:
         raise RuntimeError(f"CelesTrak returned no TLE data: {text.strip()[:200]!r}")
 
@@ -113,21 +78,7 @@ def fetch_tles(
     group: str | None = None,
     **kwargs: Any,
 ) -> list[TLE]:
-    """Fetch and parse element sets. See :func:`fetch_gp` for caching.
-
-    Parameters
-    ----------
-    catnr
-        NORAD catalog number. Mutually exclusive with ``group``.
-    group
-        CelesTrak group name.
-    **kwargs
-        Passed to :func:`fetch_gp`.
-
-    Returns
-    -------
-    list of TLE
-    """
+    """Fetch and parse element sets via :func:`fetch_gp`."""
     return parse_tle_file(fetch_gp(catnr=catnr, group=group, **kwargs))
 
 

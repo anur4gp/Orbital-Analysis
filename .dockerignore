@@ -7,7 +7,6 @@ data
 notebooks
 writeup
 tests
-tools
 scripts
 reference/lhd/build
 reference/lhd/*.so

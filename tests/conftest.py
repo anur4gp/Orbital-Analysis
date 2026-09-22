@@ -8,9 +8,7 @@ import pytest
 
 from orbital.sgp4tools.tle import TLE, parse_tle
 
-#: A frozen ISS element set. Field values are representative of a real April
-#: 2024 set; the two check digits were recomputed, so treat this as a fixture
-#: rather than a verbatim archived record.
+# Representative ISS element set (April 2024) with recomputed check digits.
 ISS_LINE1 = "1 25544U 98067A   24117.51782528  .00016717  00000-0  30074-3 0  9992"
 ISS_LINE2 = "2 25544  51.6416 247.4627 0006703 130.5360 325.0288 15.49309239448471"
 ISS_NAME = "ISS (ZARYA)"
@@ -42,11 +40,7 @@ def rng() -> np.random.Generator:
 
 @pytest.fixture
 def circular_equatorial() -> tuple[np.ndarray, np.ndarray]:
-    """(r, v) for a circular equatorial orbit: position +x, velocity +y.
-
-    Chosen because its RTN basis coincides with the inertial axes, which
-    makes rotation results checkable by inspection.
-    """
+    """(r, v) for a circular equatorial orbit; its RTN basis equals the inertial axes."""
     return np.array([7000.0, 0.0, 0.0]), np.array([0.0, 7.5, 0.0])
 
 

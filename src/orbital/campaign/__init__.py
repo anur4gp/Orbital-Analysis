@@ -1,9 +1,4 @@
-"""Monte Carlo campaigns: sweep a parameter space, in parallel or sharded.
-
-The sweep asks one question: over what range of initial uncertainty and
-sensor quality does each filter stay consistent? Phase 2 answered it at two
-points; this runs a space-filling design over six parameters.
-"""
+"""Monte Carlo filter campaigns over a space-filling design, parallel or sharded."""
 from orbital.campaign.config import PARAMETERS, CampaignConfig, Provenance
 from orbital.campaign.design import PointSettings, design_matrix, settings_for
 from orbital.campaign.runner import run_campaign, run_point

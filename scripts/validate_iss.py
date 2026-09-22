@@ -1,7 +1,6 @@
-"""Phase 1 validation: propagate the ISS and sanity-check the results.
+"""Propagate the ISS and sanity-check altitude, period and inclination.
 
-Expected for the ISS: altitude ~400-430 km, period ~92-93 min, inclination
-51.6 deg. Run: python scripts/validate_iss.py
+Run: python scripts/validate_iss.py
 """
 from __future__ import annotations
 
@@ -42,8 +41,7 @@ def main() -> int:
     print(f"  altitude   {alt.min():.1f} - {alt.max():.1f} km   (mean {alt.mean():.1f})")
     print(f"  speed      {speed.min():.3f} - {speed.max():.3f} km/s")
 
-    # Empirical period: mean time between successive perigee passages, taken as
-    # the local minima of geocentric radius.
+    # Empirical period from successive radius minima.
     rad = radius_km(r)
     minima = np.flatnonzero((rad[1:-1] < rad[:-2]) & (rad[1:-1] < rad[2:])) + 1
     empirical = np.diff(minima).mean() if len(minima) > 2 else float("nan")

@@ -1,13 +1,4 @@
-"""Campaign configuration, design mapping, execution and storage.
-
-The property that matters is determinism: a point's results must not depend
-on how the work was divided. That is asserted here by running the same
-campaign serially, in parallel, and in shards, and requiring identical rows.
-
-Scenarios are deliberately tiny (few points, few trials, a fraction of an
-orbit) -- these test the machinery, while the physics is covered by
-tests/test_estimation.py.
-"""
+"""Campaign configuration, design mapping, execution and storage."""
 from __future__ import annotations
 
 import json

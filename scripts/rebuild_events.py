@@ -1,8 +1,4 @@
-"""Phase 2 step 1: rebuild real conjunction geometries from TLEs.
-
-Propagates both objects of each cdm_public event to TCA with SGP4 and
-compares the resulting miss distance against the reported MIN_RNG. The size
-of that disagreement is what sets the uncertainty model for the Monte Carlo.
+"""Rebuild cdm_public conjunction geometry from TLEs and compare miss distances.
 
 Run: python scripts/rebuild_events.py
 """
@@ -56,11 +52,7 @@ def main() -> int:
         print(f"  mean |error|   {a.mean():.3f}")
         print(f"  median |error| {np.median(a):.3f}")
         print(f"  min / max      {a.min():.3f} / {a.max():.3f}")
-        print(
-            "\nAll distances km; vrel km/s. The reported miss distances are "
-            "sub-km while\nthe rebuilt ones disagree by kilometres -- that gap "
-            "IS the TLE uncertainty\nthe Monte Carlo has to sample over."
-        )
+        print("\nAll distances km; vrel km/s.")
     return 0
 
 

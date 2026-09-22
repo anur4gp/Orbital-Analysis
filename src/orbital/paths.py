@@ -1,13 +1,7 @@
-"""Filesystem locations, resolved once.
+"""Project filesystem locations.
 
-Before the package layout, six modules derived data directories with
-``Path(__file__).resolve().parent.parent``. That expression encodes how deep
-a module sits in the tree, so moving a file silently redirected its cache.
-Resolving the project root once, by searching upward for ``pyproject.toml``,
-removes that coupling.
-
-Set ``ORBITAL_PROJECT_ROOT`` to override -- needed when the package is
-installed outside a checkout, where no repository root exists.
+The root is the nearest parent containing ``pyproject.toml``; set
+``ORBITAL_PROJECT_ROOT`` to override.
 """
 from __future__ import annotations
 
@@ -23,7 +17,6 @@ def _find_project_root() -> Path:
     for candidate in here.parents:
         if (candidate / "pyproject.toml").is_file():
             return candidate
-    # Installed outside a checkout: fall back to the current directory.
     return Path.cwd()
 
 

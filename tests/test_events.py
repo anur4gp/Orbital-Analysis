@@ -1,8 +1,4 @@
-"""cdm_public record parsing, deduplication, and rebuilt geometry.
-
-No network: rows are dictionaries shaped like Space-Track's JSON, and the
-geometry is rebuilt from the frozen ISS element set.
-"""
+"""cdm_public record parsing, deduplication, and rebuilt geometry."""
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -116,9 +112,6 @@ class TestGeometry:
         assert build_geometry(event(), {}) is None
 
     def test_rebuilds_from_element_sets(self, iss_tle, epoch):
-        """Both objects set to the ISS: the rebuilt separation is exactly zero,
-        so the geometry wiring itself is what is being checked.
-        """
         e = event(tca=epoch.replace(tzinfo=None).isoformat(), sat1=25544, sat2=25544)
         geometry = build_geometry(e, {25544: iss_tle})
         assert geometry is not None

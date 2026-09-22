@@ -1,20 +1,11 @@
-"""Phase 3: run the filter campaign and plot where each filter holds up.
-
-Sweeps six parameters -- initial position and velocity uncertainty, range and
-range-rate noise, measurement cadence, elevation mask -- over a MaxPro
-space-filling design, running a Monte Carlo at each point with both filters.
-Phase 2 measured two points in this space; this maps it.
-
-Raw rows are persisted as parquet with the config that produced them, so a
-result can always be traced back. Re-runs read the existing directory unless
---force is given.
+"""Run the EKF/UKF filter campaign over a 6-parameter MaxPro design and plot fig8.
 
 Run:
     python scripts/run_campaign.py                     # 64 points, all cores
     python scripts/run_campaign.py --points 16 --trials 4
     python scripts/run_campaign.py --load data/campaign/<id>   # figures only
 
-For the containerised/distributed path see docker/README.md.
+See docker/README.md for the containerised path.
 """
 from __future__ import annotations
 

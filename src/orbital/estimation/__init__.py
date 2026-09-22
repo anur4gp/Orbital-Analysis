@@ -1,7 +1,4 @@
-"""Orbit determination: EKF and UKF behind one interface.
-
-The filter state is ``[r (km), v (km/s)]`` in ECI_J2000.
-"""
+"""Orbit determination (EKF, UKF); state ``[r (km), v (km/s)]`` in ECI_J2000."""
 from orbital.estimation.base import FilterHistory, Observation, SequentialFilter
 from orbital.estimation.ekf import EKF
 from orbital.estimation.orbit_model import OrbitModel

@@ -1,13 +1,4 @@
-"""Shared filter machinery: observations, histories, and the run loop.
-
-Both filters are sequential: predict to the next observation time, then
-update with that observation. They differ only in *how* they predict and
-update, so the loop and the bookkeeping live here and each filter supplies
-:meth:`SequentialFilter.predict` and :meth:`SequentialFilter.update`.
-
-Every quantity recorded is in the units of the state (km, km/s) or of the
-measurement model that produced it.
-"""
+"""Shared filter machinery: observations, histories and the predict/update loop."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -92,9 +83,7 @@ class SequentialFilter(ABC):
     model
         Orbit dynamics.
     process_noise_psd
-        White-acceleration spectral density, km^2/s^3. Zero means the filter
-        trusts its dynamics exactly -- correct when truth and filter share a
-        force model, as they do in the simulations here.
+        White-acceleration spectral density, km^2/s^3.
     """
 
     name: str = "filter"
@@ -111,49 +100,13 @@ class SequentialFilter(ABC):
     def predict(
         self, x: FloatArray, p: FloatArray, t0_s: float, t1_s: float
     ) -> tuple[FloatArray, FloatArray]:
-        """Propagate mean and covariance.
-
-        Parameters
-        ----------
-        x
-            Mean state ``[r (km), v (km/s)]``, shape (6,).
-        p
-            Covariance, km^2 and (km/s)^2 blocks, shape (6, 6).
-        t0_s, t1_s
-            Start and end times, s since the reference epoch.
-
-        Returns
-        -------
-        x1 : numpy.ndarray
-            Predicted mean, shape (6,).
-        p1 : numpy.ndarray
-            Predicted covariance, shape (6, 6).
-        """
+        """Propagate mean (6,) and covariance (6, 6) from ``t0_s`` to ``t1_s``."""
 
     @abstractmethod
     def update(
         self, x: FloatArray, p: FloatArray, obs: Observation
     ) -> tuple[FloatArray, FloatArray, UpdateInfo]:
-        """Condition on one observation taken at the current time.
-
-        Parameters
-        ----------
-        x
-            Prior mean, shape (6,).
-        p
-            Prior covariance, shape (6, 6).
-        obs
-            The observation, carrying its own measurement model.
-
-        Returns
-        -------
-        x_post : numpy.ndarray
-            Posterior mean, shape (6,).
-        p_post : numpy.ndarray
-            Posterior covariance, shape (6, 6).
-        info : UpdateInfo
-            Innovation and its covariance, for the NIS test.
-        """
+        """Condition on one observation; returns posterior mean, covariance and innovation."""
 
     def run(
         self,
@@ -174,16 +127,14 @@ class SequentialFilter(ABC):
         observations
             Measurements at or after ``t0_s``; sorted here by time.
         t_out_s
-            Extra times to report the (prior) estimate at, e.g. to show
-            covariance growth between tracking passes.
+            Extra times at which to report the prior estimate.
         """
         x = np.array(x0, dtype=float)
         p = symmetrize(np.array(p0, dtype=float))
         if x.shape != (STATE_DIM,) or p.shape != (STATE_DIM, STATE_DIM):
             raise ValueError("x0 must have shape (6,) and p0 shape (6, 6)")
 
-        # (time, order, observation-or-None); order puts outputs before
-        # observations at equal times, so the output shows the prior.
+        # Outputs sort before observations at equal times, so they report the prior.
         events: list[tuple[float, int, Observation | None]] = [
             (float(o.t_s), 1, o) for o in observations
         ]

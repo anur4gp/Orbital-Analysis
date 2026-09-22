@@ -1,9 +1,4 @@
-"""Conjunction events: pair a cdm_public screening record with TLE states.
-
-Phase 2 step 1. `cdm_public` gives the event (TCA, miss distance, the two
-object IDs, 18 SDS's own PC) but no state vectors, so the geometry has to be
-rebuilt by propagating both objects' TLEs to TCA with SGP4.
-"""
+"""cdm_public screening records and their geometry rebuilt from TLEs via SGP4."""
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -56,7 +51,7 @@ class Event:
 
     @property
     def combined_excl_vol_km(self) -> float | None:
-        """Sum of exclusion volumes -- a stand-in for the hard-body radius."""
+        """Sum of exclusion volumes, km (a screening volume, not a hard-body radius)."""
         if self.sat1_excl_vol is None or self.sat2_excl_vol is None:
             return None
         return self.sat1_excl_vol + self.sat2_excl_vol
@@ -83,31 +78,13 @@ def parse_event(row: dict) -> Event:
 
 
 def load_events(st: SpaceTrack, limit: int = 500, **kwargs: Any) -> list[Event]:
-    """Most recent cdm_public records, newest first.
-
-    Parameters
-    ----------
-    st
-        Authenticated Space-Track client.
-    limit
-        Maximum rows to request.
-    **kwargs
-        Extra query predicates passed through to the client.
-
-    Returns
-    -------
-    list of Event
-    """
+    """Most recent cdm_public records, newest first."""
     rows = st.query("cdm_public", orderby="TCA desc", limit=limit, **kwargs)
     return [parse_event(r) for r in rows]
 
 
 def tractable(events: list[Event]) -> list[Event]:
-    """Events whose objects should both have public TLEs.
-
-    Analyst objects (UNKNOWN type, six-digit ids) are tracked but not
-    published in the public catalog, so their conjunctions can't be rebuilt.
-    """
+    """Drop events involving analyst objects (UNKNOWN type, six-digit ids), which have no public TLEs."""
     return [
         e for e in events
         if "UNKNOWN" not in (e.sat1_type, e.sat2_type)
@@ -118,25 +95,7 @@ def tractable(events: list[Event]) -> list[Event]:
 def fetch_tles_for(
     st: SpaceTrack, norad_ids: Iterable[int], **kwargs: Any
 ) -> dict[int, TLE]:
-    """Fetch latest TLEs for many objects in ONE request.
-
-    Space-Track throttles gp queries hard, so ids are sent as a comma-
-    delimited list rather than looped one per request.
-
-    Parameters
-    ----------
-    st
-        Authenticated Space-Track client.
-    norad_ids
-        Catalog numbers; duplicates are collapsed.
-    **kwargs
-        Extra query predicates passed through to the client.
-
-    Returns
-    -------
-    dict
-        Element set per catalog number, omitting objects with no usable TLE.
-    """
+    """Latest TLE per catalog number, fetched in a single gp request."""
     ids = sorted({int(i) for i in norad_ids})
     rows = st.query(
         "gp",
@@ -183,31 +142,13 @@ class Geometry:
 
     @property
     def miss_error_km(self) -> float | None:
-        """Rebuilt miss distance minus the reported one.
-
-        Expected to be kilometres, not metres: TLEs carry ~1 km error that
-        grows with age, while MIN_RNG is a few hundred metres. That gap is
-        the uncertainty Phase 2 has to model, not a bug.
-        """
+        """Rebuilt minus reported miss distance, km (km-scale, from TLE error)."""
         reported = self.reported_miss_km
         return None if reported is None else self.miss_km - reported
 
 
 def build_geometry(event: Event, tles: dict) -> Geometry | None:
-    """Propagate both objects to TCA.
-
-    Parameters
-    ----------
-    event
-        Screening record supplying the epoch and the object ids.
-    tles
-        Element sets keyed by catalog number.
-
-    Returns
-    -------
-    Geometry or None
-        None when either object's element set is missing.
-    """
+    """Propagate both objects to TCA; None if either TLE is missing."""
     t1, t2 = tles.get(event.sat1_id), tles.get(event.sat2_id)
     if t1 is None or t2 is None:
         return None
@@ -222,27 +163,11 @@ def build_geometry(event: Event, tles: dict) -> Geometry | None:
 
 
 def deduplicate(events: list[Event], tca_tolerance_s: float = 900.0) -> list[Event]:
-    """Collapse repeated filings of the same conjunction into one.
+    """Collapse repeated filings of one conjunction, sorted by TCA.
 
-    cdm_public reports every event twice -- once with each object as primary
-    -- and also re-files it as the estimate is refined, each revision landing
-    at a slightly different TCA. So an exact-TCA key is not enough: events are
-    grouped by unordered object pair, then merged when their TCAs fall within
-    ``tca_tolerance_s``. Leaving duplicates in would double-count during
-    calibration and leak between train and test in Phase 4.
-
-    Parameters
-    ----------
-    events
-        Records to collapse.
-    tca_tolerance_s
-        Two filings of one pair within this many seconds are treated as the
-        same conjunction.
-
-    Returns
-    -------
-    list of Event
-        One record per distinct conjunction, sorted by TCA.
+    cdm_public files each event once per primary and again per revision, with
+    shifting TCAs, so filings of the same unordered pair within
+    ``tca_tolerance_s`` are merged.
     """
     by_pair: dict[frozenset, list[Event]] = {}
     for e in events:
@@ -254,7 +179,7 @@ def deduplicate(events: list[Event], tca_tolerance_s: float = 900.0) -> list[Eve
         kept: list[Event] = []
         for e in group:
             if kept and (e.tca - kept[-1].tca).total_seconds() <= tca_tolerance_s:
-                continue  # same conjunction, later revision
+                continue
             kept.append(e)
         out.extend(kept)
     return sorted(out, key=lambda e: e.tca)

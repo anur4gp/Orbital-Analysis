@@ -1,26 +1,12 @@
 """Unscented Kalman filter (additive noise, scaled sigma points).
 
-Sigma points for mean ``x`` and covariance ``P`` in ``n`` dimensions::
-
     lambda = alpha^2 (n + kappa) - n
-    chi_0  = x,   chi_{+-i} = x +- [sqrt((n + lambda) P)]_i
-    Wm_0 = lambda / (n + lambda),  Wc_0 = Wm_0 + (1 - alpha^2 + beta)
+    Wm_0 = lambda / (n + lambda),  Wc_0 = Wm_0 + 1 - alpha^2 + beta
     Wm_i = Wc_i = 1 / (2 (n + lambda))
 
-Each sigma point is pushed through the *nonlinear* dynamics or measurement
-function, and the mean and covariance are re-estimated from the images. This
-captures the mean exactly to second order, where the EKF is only first-order
-accurate -- the difference that matters when the uncertainty is large
-relative to the curvature of the problem.
-
-Defaults ``alpha = 1, beta = 2, kappa = 0`` give ``lambda = 0``: the centre
-point carries no weight in the mean, all weights are non-negative, and the
-predicted covariance is positive semi-definite by construction. The often
-quoted ``alpha = 1e-3`` makes ``Wm_0`` about -1e6, which is exact for
-Gaussians in principle but numerically fragile in 6-D.
-
-After prediction, sigma points are redrawn from ``(x-, P- + Q)`` for the
-update, so the process noise is represented in the measurement prediction.
+Defaults ``alpha=1, beta=2, kappa=0`` keep all weights non-negative; the common
+``alpha=1e-3`` is numerically fragile in 6-D. Sigma points are redrawn after
+prediction so Q enters the measurement update.
 """
 from __future__ import annotations
 
@@ -39,7 +25,7 @@ class UKF(SequentialFilter):
     model, process_noise_psd
         As for :class:`~orbital.estimation.base.SequentialFilter`.
     alpha, beta, kappa
-        Sigma-point spread and weighting (see module docstring).
+        Sigma-point spread and weighting.
     """
 
     name = "UKF"
@@ -63,25 +49,7 @@ class UKF(SequentialFilter):
         self.wc[0] = self.wm[0] + (1.0 - alpha**2 + beta)
 
     def sigma_points(self, x: FloatArray, p: FloatArray) -> FloatArray:
-        """The ``2n + 1`` sigma points, shape ``(13, 6)``.
-
-        Parameters
-        ----------
-        x
-            Mean state, shape (6,).
-        p
-            Covariance, shape (6, 6).
-
-        Returns
-        -------
-        numpy.ndarray
-            Sigma points, shape (13, 6).
-
-        Raises
-        ------
-        numpy.linalg.LinAlgError
-            If P is not positive definite -- a filter bug, never masked.
-        """
+        """The ``2n + 1`` sigma points, shape ``(13, 6)``; raises if P is not PD."""
         n = len(x)
         root = np.linalg.cholesky((n + self.lam) * p)
         return np.vstack([x, x + root.T, x - root.T])

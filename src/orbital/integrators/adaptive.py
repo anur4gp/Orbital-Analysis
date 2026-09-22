@@ -15,7 +15,6 @@ from orbital.integrators.base import (
     check_times,
 )
 
-#: Guard against a constraint that re-triggers immediately after projection.
 _MAX_RESTARTS = 10_000
 
 
@@ -23,11 +22,8 @@ _MAX_RESTARTS = 10_000
 class DOP853:
     """Adaptive DOP853 with error control ``|err_i| <= atol + rtol |y_i|``.
 
-    Constraint handling: ``solve_ivp`` offers no hook to modify the state
-    between steps, so the violation is watched with a terminal event. When it
-    crosses the tolerance the integration stops at that instant, the state is
-    projected, and integration restarts from the projected state. With tight
-    tolerances this rarely fires; the count is reported either way.
+    ``solve_ivp`` has no between-step hook, so constraints are enforced by a
+    terminal event: stop, project, restart.
 
     Parameters
     ----------
@@ -94,7 +90,6 @@ class DOP853:
                 ys.append(np.asarray(sol.y, dtype=float).T)
             if sol.status != 1:  # reached t_end
                 break
-            # Terminal event: project and restart from the event state.
             t_start = float(sol.t_events[0][0])
             y_event = sol.y_events[0][0]
             max_violation = max(max_violation, constraint.violation(y_event))  # type: ignore[union-attr]

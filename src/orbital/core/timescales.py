@@ -1,9 +1,4 @@
-"""Epoch handling: Julian dates from timezone-aware UTC datetimes.
-
-Julian dates are returned as a ``(jd, fr)`` pair (see
-:mod:`orbital.conventions`), which keeps microsecond resolution that a single
-float64 would lose.
-"""
+"""Julian dates from timezone-aware UTC datetimes."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -20,10 +15,7 @@ def require_utc(epoch: datetime) -> datetime:
 
 
 def julian_date(epoch: datetime) -> tuple[float, float]:
-    """Julian date of ``epoch`` as ``(jd, fr)``: jd ends in .5, fr in [0, 1).
-
-    Uses the Fliegel-Van Flandern day count, valid for Gregorian dates.
-    """
+    """Julian date as ``(jd, fr)``: jd ends in .5, fr in [0, 1) (Fliegel-Van Flandern)."""
     e = require_utc(epoch)
     a = (14 - e.month) // 12
     y = e.year + 4800 - a

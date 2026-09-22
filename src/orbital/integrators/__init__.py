@@ -1,4 +1,4 @@
-"""ODE integrators behind a common interface, so they can be swapped and compared."""
+"""ODE integrators behind a common interface."""
 from orbital.integrators.adaptive import DOP853
 from orbital.integrators.base import Constraint, IntegrationResult, Integrator
 from orbital.integrators.rk4 import RK4

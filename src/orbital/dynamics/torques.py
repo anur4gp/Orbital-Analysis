@@ -17,15 +17,7 @@ class TorqueModel(Protocol):
     """External torque about the centre of mass."""
 
     def torque(self, state: RigidBodyState, mass_properties: MassProperties) -> FloatArray:
-        """Torque, N m, BODY axes.
-
-        Parameters
-        ----------
-        state
-            Current 6-DOF state.
-        mass_properties
-            Mass and inertia of the body.
-        """
+        """Torque, N m, BODY axes."""
         ...
 
 
@@ -35,10 +27,8 @@ class GravityGradientTorque:
 
         tau_B = (3 mu / |r|^3) (u x I u),    u = C^T r / |r|
 
-    ``u`` is the unit vector to the spacecraft from Earth's centre, in BODY
-    axes. ``mu / r**3`` has units 1/s^2 whatever the length unit, so with
-    ``I`` in kg m^2 the torque is in N m. The first-order (``r >> size``)
-    expansion; exact for any body small compared with its orbit radius.
+    ``u`` is the BODY-axis unit vector from Earth's centre. ``mu / r^3`` is
+    1/s^2 in any length unit, so the torque is in N m.
 
     Parameters
     ----------

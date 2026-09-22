@@ -1,14 +1,6 @@
-"""Force models, expressed as accelerations in ECI_J2000.
+"""Force models as accelerations (km/s^2) in ECI_J2000.
 
-A force model returns acceleration (km/s^2), not force: gravity is
-mass-independent, and non-gravitational models can divide by
-``mass_properties.mass_kg`` themselves. Gravity models also expose their
-potential so the total mechanical energy can be checked for conservation.
-
-Modelling assumption for J2: the ECI_J2000 z-axis is taken as Earth's spin
-axis. Precession and nutation move the true pole by about 0.3 degrees since
-J2000; that is neglected here and would enter through a proper
-ECI -> ECEF transformation.
+J2 treats the ECI z-axis as Earth's spin axis (precession/nutation neglected).
 """
 from __future__ import annotations
 
@@ -44,12 +36,7 @@ class ConservativeForce(ForceModel, Protocol):
 
 @runtime_checkable
 class PositionOnlyForce(ForceModel, Protocol):
-    """A force that depends only on position, evaluable for many points at once.
-
-    Orbit determination propagates many states together (sigma points,
-    finite-difference stencils); the vectorised form avoids a Python-level
-    loop per state.
-    """
+    """A force that depends only on position, vectorised over many points."""
 
     def acceleration_many(self, r_km: FloatArray) -> FloatArray:
         """Accelerations, km/s^2, for positions of shape ``(k, 3)``."""
@@ -88,10 +75,7 @@ class TwoBodyGravity:
 
 @dataclass(frozen=True)
 class J2Gravity:
-    """Perturbing acceleration of Earth's oblateness (J2 term only).
-
-    Add alongside :class:`TwoBodyGravity`; this model is the perturbation,
-    not the total field. Potential per unit mass:
+    """J2 perturbation only; use alongside :class:`TwoBodyGravity`.
 
         V_J2 = (mu J2 R^2 / (2 r^3)) (3 z^2 / r^2 - 1)
 
@@ -124,7 +108,7 @@ class J2Gravity:
         return np.column_stack([k * x * (1.0 - zr), k * y * (1.0 - zr), k * z * (3.0 - zr)])
 
     def potential(self, r_km: FloatArray) -> float:
-        """J2 potential per unit mass, km^2/s^2. See the class docstring."""
+        """J2 potential per unit mass, km^2/s^2."""
         r = float(np.linalg.norm(r_km))
         z = float(r_km[2])
         return (

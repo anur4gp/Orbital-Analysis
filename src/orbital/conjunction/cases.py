@@ -1,10 +1,4 @@
-"""Reduction of catalog conjunctions to the 2-D encounter-plane problem.
-
-Extracted from the Phase 2 baseline script so that both the benchmark and
-the figure generator can build the same cases. It previously lived in
-``run_montecarlo.py`` and was imported script-to-script, which is fine until
-either script grows a ``__main__`` side effect.
-"""
+"""Reduce cdm_public conjunctions to 2-D encounter-plane cases."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -26,7 +20,7 @@ from orbital.conjunction.events import (
 from orbital.conjunction.probability import hard_body_radius_km, project_encounter
 from orbital.sgp4tools.spacetrack import SpaceTrack
 
-#: Below this relative speed the short-term encounter assumption fails.
+# Short-term encounter model breaks down below this relative speed.
 MIN_VREL_KM_S = 1.0
 
 
@@ -57,22 +51,7 @@ class Case:
 
 def build_cases(limit: int, sigma_r_km: float = CALIBRATED_SIGMA_R_KM,
                 min_vrel_km_s: float = MIN_VREL_KM_S) -> list[Case]:
-    """Fetch, rebuild and project conjunctions into encounter-plane cases.
-
-    Parameters
-    ----------
-    limit : int
-        Maximum number of cases to return.
-    sigma_r_km : float, optional
-        Radial covariance scale, km. Defaults to the calibrated value.
-    min_vrel_km_s : float, optional
-        Relative-speed floor, km/s. Slower encounters violate the short-term
-        encounter assumption and are skipped.
-
-    Returns
-    -------
-    list of Case
-    """
+    """Fetch, rebuild and project up to ``limit`` conjunctions into encounter-plane cases."""
     with SpaceTrack() as st:
         events = deduplicate(tractable(load_events(st, limit=500)))
         ids = {i for e in events[: limit * 3] for i in e.object_ids}

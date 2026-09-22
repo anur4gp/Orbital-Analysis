@@ -1,10 +1,4 @@
-"""Shared figure styling for the report figures.
-
-Palette: slots 1-3 of the reference categorical theme (blue, orange, aqua),
-the documented all-pairs-safe subset. Series also differ by marker and dash
-pattern, so figures survive greyscale printing and colour-vision deficiency.
-Aqua is below 3:1 contrast on white, so its numbers are always printed too.
-"""
+"""Shared figure style for the report."""
 from __future__ import annotations
 
 from typing import Any
@@ -44,17 +38,9 @@ def despine(ax: Any) -> None:
 
 
 def save(fig: Any, stem: str) -> None:
-    """Write a figure as vector PDF and PNG under ``writeup/figures``.
+    """Write ``stem.pdf`` and ``stem.png`` under ``writeup/figures``.
 
-    The PDF creation date is omitted so that regenerating an unchanged figure
-    leaves the file byte-identical and out of the git diff.
-
-    Parameters
-    ----------
-    fig
-        The matplotlib figure.
-    stem
-        File name without extension.
+    The PDF creation date is dropped so unchanged figures stay byte-identical.
     """
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
     fig.savefig(FIGURE_DIR / f"{stem}.pdf", bbox_inches="tight", metadata={"CreationDate": None})

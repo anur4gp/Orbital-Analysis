@@ -1,11 +1,4 @@
-"""EKF / UKF orbit determination.
-
-Checks fall into four groups: the building blocks are right (Jacobians,
-state transition matrix, sigma points); the filters reduce to the exact
-Kalman update where the problem is linear; the filters are statistically
-consistent when the problem is benign; and the EKF -- not the UKF -- loses
-consistency when the initial uncertainty is large.
-"""
+"""EKF / UKF orbit determination."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -121,8 +114,7 @@ class TestOrbitModel:
         """Conservative dynamics: Phi^T J Phi = J, hence det Phi = 1."""
         _, phi = MODEL.propagate_with_stm(X0, 0.0, 3000.0)
         j = np.block([[np.zeros((3, 3)), np.eye(3)], [-np.eye(3), np.zeros((3, 3))]])
-        # Entries of Phi reach ~5e3 (km per km/s over 3000 s), so products
-        # reach ~3e7; 1e-4 absolute is ~4e-9 relative to them.
+        # Phi entries reach ~5e3, so 1e-4 absolute is ~4e-9 relative.
         assert np.allclose(phi.T @ j @ phi, j, atol=1e-4)
         assert np.linalg.det(phi) == pytest.approx(1.0, abs=1e-7)
 
@@ -268,12 +260,7 @@ class TestFilterConsistency:
     """First pass over Madrid begins at t = 1500 s in this geometry."""
 
     def test_both_filters_consistent_with_precise_prior(self):
-        """10 m / 1 cm/s: averaged NEES at the end lies in the 99% interval.
-
-        Only the final time is tested: NEES values at successive times share
-        the same runs, so they are not independent samples, and a fraction-
-        inside criterion over them is far noisier than it looks.
-        """
+        """Only the final time is tested; NEES at successive times is correlated."""
         n_runs = 40
         results = monte_carlo(ground_scenario(0.01, 1e-5, 2400.0), [EKF(MODEL), UKF(MODEL)],
                               n_runs, seed=11)
@@ -284,12 +271,6 @@ class TestFilterConsistency:
             assert lo < final < hi, name
 
     def test_ekf_overconfident_ukf_holds_with_km_prior(self):
-        """1 km / 1 m/s initial uncertainty -- roughly TLE grade.
-
-        The arc runs through the first pass and 60 min of the gap after it,
-        which is where linear covariance propagation collapses the thinnest
-        direction of P (see scripts/run_estimation.py).
-        """
         results = monte_carlo(ground_scenario(1.0, 1e-3, 5400.0), [EKF(MODEL), UKF(MODEL)],
                               N_RUNS, seed=11)
         lo, hi = cs.average_bounds(6, N_RUNS)
@@ -298,9 +279,6 @@ class TestFilterConsistency:
         first = int(np.argmax(results["EKF"].updated))
         # Before any measurement both are just propagating the same prior.
         assert ekf[first - 1] == pytest.approx(ukf[first - 1], rel=1e-3)
-        # After the gap the EKF's covariance no longer covers its errors; the
-        # UKF is somewhat optimistic too, but by a small factor, not orders.
-        # Measured 62 at 90 min (7.6x the bound) and still climbing; ~1000 by
-        # the next pass in the full benchmark.
+        # Measured EKF NEES ~62 at 90 min (7.6x the bound); UKF within a small factor.
         assert ekf[-1] > 5 * hi
         assert ukf[-1] < 2 * hi

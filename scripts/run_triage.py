@@ -1,23 +1,7 @@
-"""Phase 4: train and evaluate the risk-triage classifier.
+"""Train and evaluate the triage classifier at full recall.
 
-The operating question is not "how accurate is the model" -- at a 0.1%
-positive rate a constant "no" scores 99.9%. It is: **how much of the catalog
-can be discarded while still catching every high-risk conjunction?**
-
-Thresholds are chosen from OUT-OF-FOLD predictions on the training set, then
-applied unchanged to held-out data. Two traps this avoids:
-
-  * Choosing the threshold from test labels reports the oracle, not a
-    deployable system. The oracle is shown separately, as an upper bound.
-  * Choosing it from in-sample training scores is worse than useless for a
-    model that can fit its training set. Gradient boosting scores every
-    training positive highly, so the implied threshold does not transfer at
-    all, and the operating point collapses to "keep everything".
-
-Thresholds are quoted at a target recall slightly below 1.0 as well, because
-requiring literally every training positive makes the operating point
-hostage to a single hardest example.
-
+Thresholds come from out-of-fold training scores and are applied unchanged to
+held-out data (in-sample thresholds collapse for gradient boosting).
 Run: python scripts/run_triage.py
 """
 from __future__ import annotations
@@ -35,7 +19,7 @@ from orbital.triage.features import FEATURES
 
 DATA = DATA_DIR / "triage_dataset.csv"
 THRESHOLD = -10.0
-TEST_DAYS = (5, 6)          # zero-indexed: last two days of each window
+TEST_DAYS = (5, 6)  # zero-indexed
 SEED = 7
 
 
@@ -65,14 +49,13 @@ def threshold_at_recall(scores: np.ndarray, y: np.ndarray, recall: float) -> flo
     pos = np.sort(scores[y.astype(bool)])
     if pos.size == 0:
         return -np.inf
-    # Keep the top `recall` fraction of positives.
     idx = int(np.floor((1.0 - recall) * pos.size))
     return float(pos[min(idx, pos.size - 1)])
 
 
 def evaluate(name, model, xtr, ytr, xte, yte, target_recall: float):
     """Fit, pick a threshold out-of-fold, then measure on held-out data."""
-    if model is None:                     # raw-feature baseline
+    if model is None:  # raw-feature baseline
         oof, s_te = xtr, xte
     else:
         oof = out_of_fold_scores(model, xtr, ytr)
@@ -108,7 +91,7 @@ def main() -> int:
             held = set(rng.choice(objects, size=int(0.35 * len(objects)), replace=False).tolist())
             in_held = np.array([[a in held, b in held] for a, b in norad])
             test_mask = in_held.all(axis=1)
-            train_mask = ~in_held.any(axis=1)   # drop cross pairs entirely
+            train_mask = ~in_held.any(axis=1)  # drop cross pairs
         else:
             train_mask = ~test_mask
 

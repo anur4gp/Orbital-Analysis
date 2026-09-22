@@ -1,11 +1,4 @@
-"""Truth trajectories, synthetic measurements, and Monte Carlo runs.
-
-Truth comes from the Phase 1 6-DOF propagator (translation block; the
-attitude is carried but does not affect the gravity models). Measurements
-are the model predictions at the true state plus Gaussian noise drawn from
-the model's own R, optionally scaled -- a scale above 1 makes the filter's
-assumed noise optimistic, which is a controlled way to break consistency.
-"""
+"""Truth trajectories, synthetic measurements and filter Monte Carlo runs."""
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -31,12 +24,9 @@ from orbital.integrators.adaptive import DOP853
 
 TRUTH_INTEGRATOR = DOP853(rtol=1e-12, atol=1e-13)
 
-#: Reference epoch for the tracking scenarios.
 DEFAULT_EPOCH = datetime(2026, 9, 16, tzinfo=UTC)
 
-#: Three widely separated sites: (name, latitude deg, east longitude deg,
-#: altitude km). Coordinates are approximate DSN complex locations, used as
-#: a plausible geometry rather than as survey data.
+# (name, lat deg, east lon deg, alt km); approximate DSN sites.
 DEFAULT_SITES = (
     ("Goldstone", 35.4267, -116.8900, 1.00),
     ("Canberra", -35.4014, 148.9817, 0.69),
@@ -48,22 +38,7 @@ _NOMINAL_BODY = MassProperties(100.0, InertiaTensor.diagonal(10.0, 12.0, 15.0))
 def truth_trajectory(
     forces: Sequence[ForceModel], x0: ArrayLike, t_s: ArrayLike
 ) -> FloatArray:
-    """True states from the 6-DOF propagator.
-
-    Parameters
-    ----------
-    forces
-        Force models; the same ones the filter uses.
-    x0
-        Initial state ``[r (km), v (km/s)]``, shape (6,).
-    t_s
-        Output times, s since the reference epoch.
-
-    Returns
-    -------
-    numpy.ndarray
-        States at ``t_s``, shape (K, 6).
-    """
+    """True states ``(K, 6)`` at ``t_s`` from the 6-DOF propagator."""
     x0 = np.asarray(x0, dtype=float)
     body = RigidBody(_NOMINAL_BODY, tuple(forces))
     initial = RigidBodyState(x0[:3], x0[3:], IDENTITY, np.zeros(3), float(np.asarray(t_s)[0]))
@@ -80,17 +55,7 @@ def simulate_observations(
 ) -> list[Observation]:
     """Noisy measurements from every available model at every time.
 
-    Parameters
-    ----------
-    t_s, truth
-        Times (s) and true states (shape ``(K, 6)``).
-    models
-        Sensors; each is sampled only where ``is_available`` is true.
-    rng
-        Random generator (seed it for reproducibility).
-    noise_scale
-        Multiplier on the true noise standard deviation relative to the R the
-        filter assumes.
+    ``noise_scale`` multiplies the true noise sigma relative to the filter's R.
     """
     observations = []
     for t, x in zip(t_s, truth, strict=True):
@@ -114,10 +79,9 @@ class Scenario:
     x0_true
         True initial state, km and km/s.
     p0
-        Initial covariance the filter is given; initial estimates are drawn
-        from N(x0_true, p0), so p0 is also the true initial error covariance.
+        Initial covariance; estimates are drawn from N(x0_true, p0).
     t_s
-        Time grid, s. Observations are taken on it and estimates reported on it.
+        Observation and report grid, s.
     models
         Measurement models.
     noise_scale
@@ -169,27 +133,7 @@ def monte_carlo(
     n_runs: int,
     seed: int,
 ) -> dict[str, MonteCarloResult]:
-    """Run every filter on the same ``n_runs`` noise realisations.
-
-    Each run draws one initial estimate and one set of measurement noise;
-    all filters see identical inputs, so their differences are the filters'.
-
-    Parameters
-    ----------
-    scenario
-        Truth, tracking network and initial covariance.
-    filters
-        Filters to compare.
-    n_runs
-        Monte Carlo runs.
-    seed
-        Base seed, making the whole campaign reproducible.
-
-    Returns
-    -------
-    dict
-        One :class:`MonteCarloResult` per filter name.
-    """
+    """Run every filter on the same ``n_runs`` noise realisations, keyed by filter name."""
     truth = scenario.truth()
     rng = np.random.default_rng(seed)
     root_p0 = np.linalg.cholesky(scenario.p0)
@@ -225,22 +169,7 @@ def monte_carlo(
 def circular_orbit_state(
     a_km: float, inclination_deg: float, raan_deg: float = 0.0
 ) -> FloatArray:
-    """State of a circular orbit at its ascending node.
-
-    Parameters
-    ----------
-    a_km
-        Orbit radius, km.
-    inclination_deg
-        Inclination, degrees.
-    raan_deg
-        Right ascension of the ascending node, degrees.
-
-    Returns
-    -------
-    numpy.ndarray
-        State ``[r (km), v (km/s)]`` in ECI_J2000, shape (6,).
-    """
+    """ECI_J2000 state ``[r, v]`` of a circular orbit at its ascending node."""
     c = rot_z(np.radians(raan_deg)) @ rot_x(np.radians(inclination_deg))
     speed = np.sqrt(MU_EARTH_KM3_S2 / a_km)
     return np.concatenate([c @ [a_km, 0.0, 0.0], c @ [0.0, speed, 0.0]])
@@ -252,25 +181,7 @@ def tracking_network(
     min_elevation_deg: float = 10.0,
     epoch: datetime | None = None,
 ) -> list[RangeRangeRate]:
-    """Range/range-rate models for the three default sites.
-
-    Parameters
-    ----------
-    sigma_range_km
-        Range noise, 1-sigma, km.
-    sigma_range_rate_km_s
-        Range-rate noise, 1-sigma, km/s.
-    min_elevation_deg
-        Elevation mask, degrees.
-    epoch
-        Reference epoch for Earth orientation. None means
-        :data:`DEFAULT_EPOCH`.
-
-    Returns
-    -------
-    list of RangeRangeRate
-        One model per site in :data:`DEFAULT_SITES`.
-    """
+    """Range/range-rate models for :data:`DEFAULT_SITES` (``epoch`` defaults to :data:`DEFAULT_EPOCH`)."""
     earth = EarthRotation(DEFAULT_EPOCH if epoch is None else epoch)
     return [
         RangeRangeRate(

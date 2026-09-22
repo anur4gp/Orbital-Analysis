@@ -1,10 +1,4 @@
-"""Encounter-parameter spaces and the exact 6 -> 4 reduction.
-
-The reduction rests on two invariances of the collision integral. They are
-verified numerically over the whole box rather than argued from algebra,
-because a silently wrong reduction would invalidate every surrogate result
-downstream. Residuals here are quadrature noise, not model error.
-"""
+"""Encounter-parameter spaces and the exact 6 -> 4 reduction."""
 from __future__ import annotations
 
 import numpy as np
@@ -60,9 +54,6 @@ class TestBoxMapping:
 
 class TestEveryPointIsPhysical:
     def test_covariance_is_symmetric_positive_definite(self, box_points):
-        """A box in the raw entries (c11, c12, c22) would not guarantee this;
-        parameterising by eigenvalues and an angle does.
-        """
         for row in box_points:
             _, cov, hbr = unpack(row)
             assert np.allclose(cov, cov.T)
@@ -104,9 +95,6 @@ class TestInvariances:
         assert worst < EXACT, f"max relative error {worst:.2e}"
 
     def test_probability_is_even_in_each_miss_component(self, box_points):
-        """Holds in the covariance eigenbasis, and is what lets the reduced
-        box restrict to non-negative miss components.
-        """
         worst = 0.0
         for row in box_points[:100]:
             mu, cov, hbr = unpack(row)
@@ -166,9 +154,6 @@ class TestReducedSpace:
             assert hbr == 1.0
 
     def test_anisotropy_ordering_holds_by_construction(self, rng):
-        """Parameterising by the ratio sigma_2/sigma_1 <= 1 removes the need
-        for a rejection step.
-        """
         for row in from_unit_cube_4d(rng.random((200, DIM_4D))):
             _, cov, _ = unpack_4d(row)
             assert cov[1, 1] <= cov[0, 0] + 1e-12

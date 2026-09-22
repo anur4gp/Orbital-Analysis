@@ -1,11 +1,6 @@
-"""Space-Track.org API client: cookie session, rate limiting, on-disk cache.
+"""Space-Track.org client: cookie session, rate limiting, on-disk cache.
 
-Space-Track enforces 30 requests/minute and 300/hour account-wide, with
-per-class throttles on top, and suspends accounts that violate them. Every
-request here goes through a conservative limiter and the cache in
-`data/spacetrack_cache/`.
-
-Credentials come from `.env` (gitignored) -- never hardcode them.
+Credentials are read from the environment or ``.env``.
 """
 from __future__ import annotations
 
@@ -35,19 +30,7 @@ USER_AGENT = "orbital-analysis/0.1 (conjunction assessment portfolio project)"
 
 
 def load_env(path: Path | None = None) -> dict[str, str]:
-    """Minimal KEY=VALUE parser, so the project doesn't need python-dotenv.
-
-    Parameters
-    ----------
-    path
-        File to read. ``None`` means :data:`ENV_PATH`, resolved at call time
-        rather than frozen as a default argument, so it stays overridable.
-
-    Returns
-    -------
-    dict
-        Parsed keys and values; empty when the file is absent.
-    """
+    """Minimal KEY=VALUE parser; ``path`` defaults to :data:`ENV_PATH`."""
     path = ENV_PATH if path is None else path
     env: dict[str, str] = {}
     if not path.exists():
@@ -84,19 +67,11 @@ class RateLimiter:
         self.calls: deque[float] = deque()
 
     def acquire(self, verbose: bool = True) -> None:
-        """Block until another call is allowed, then record it.
-
-        Parameters
-        ----------
-        verbose
-            Print each wait, so a long throttle is visible in a script's log.
-        """
+        """Block until another call is allowed, then record it."""
         while True:
             now = time.time()
             while self.calls and now - self.calls[0] >= 3600:
                 self.calls.popleft()
-            # Window membership is strict: a call exactly 60 s old has left the
-            # last minute. Using >= here would add a needless extra wake-up.
             recent = [t for t in self.calls if now - t < 60]
             waits = []
             if len(recent) >= self.per_minute:
@@ -113,12 +88,7 @@ class RateLimiter:
 
 
 class SpaceTrack:
-    """Authenticated Space-Track session.
-
-    Usage:
-        with SpaceTrack() as st:
-            rows = st.query("gp", NORAD_CAT_ID=25544)
-    """
+    """Authenticated Space-Track session, used as a context manager."""
 
     def __init__(self, timeout: float = 60.0):
         self.timeout = timeout
@@ -179,26 +149,9 @@ class SpaceTrack:
         force: bool = False,
         **predicates: object,
     ) -> Any:
-        """Run one query, served from cache when a fresh copy exists.
+        """Run one query, served from cache when fresh.
 
-        Parameters
-        ----------
-        request_class
-            Space-Track request class, e.g. ``gp`` or ``cdm_public``.
-        fmt
-            Response format; ``json`` is parsed, anything else returned raw.
-        max_age_hours
-            Cache freshness window, hours.
-        force
-            Requery even when the cache is fresh.
-        **predicates
-            Query predicates in Space-Track's URL style, e.g.
-            ``query("gp", NORAD_CAT_ID=25544, orderby="EPOCH desc", limit=1)``.
-
-        Returns
-        -------
-        Any
-            Parsed JSON for ``fmt="json"``, otherwise the raw text.
+        e.g. ``query("gp", NORAD_CAT_ID=25544, orderby="EPOCH desc", limit=1)``.
         """
         url = self._build_path(request_class, predicates, fmt)
         digest = hashlib.sha256(url.encode()).hexdigest()[:16]
@@ -213,7 +166,7 @@ class SpaceTrack:
         self.limiter.acquire()
         response = self.session.get(url, timeout=self.timeout)
         if response.status_code == 401:
-            # Session cookies expire; re-authenticate once and retry.
+            # Expired session: re-authenticate once.
             self._logged_in = False
             self.login()
             self.limiter.acquire()

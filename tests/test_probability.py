@@ -1,8 +1,4 @@
-"""Collision probability: encounter-plane projection and the three estimators.
-
-The Monte Carlo sampler and the polar quadrature share no code path, so
-agreement between them is a genuine cross-check rather than a tautology.
-"""
+"""Collision probability: encounter-plane projection and the three estimators."""
 from __future__ import annotations
 
 import numpy as np
@@ -69,9 +65,6 @@ class TestEstimatorsAgree:
             np.log10(pc_small_disk(mu, COV_2D, 1e-3)))
 
     def test_log_form_survives_where_the_linear_form_underflows(self):
-        """Screened conjunctions routinely miss by tens of sigma, where Pc
-        underflows to exactly zero in double precision.
-        """
         mu = np.array([400.0, 400.0])
         linear = pc_small_disk(mu, COV_2D, 1e-3)
         logged = log10_pc_small_disk(mu, COV_2D, 1e-3)
@@ -92,9 +85,6 @@ class TestScaling:
         assert far < near
 
     def test_a_disk_far_larger_than_the_uncertainty_captures_everything(self):
-        """Tolerance is the quadrature's own resolution: the midpoint rule
-        carries a relative error of about (dr/sigma)^2 / 24, tuned to ~1e-6.
-        """
         assert pc_analytic(np.zeros(2), np.diag([1e-4, 1e-4]), 10.0) == \
             pytest.approx(1.0, abs=1e-5)
 

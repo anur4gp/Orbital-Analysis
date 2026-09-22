@@ -1,8 +1,4 @@
-"""Integrator interface: order of accuracy, output timing, projection.
-
-Checked on the harmonic oscillator, whose exact solution is known, so the
-tests measure error rather than compare against stored values.
-"""
+"""Integrator interface: order of accuracy, output timing, projection."""
 from __future__ import annotations
 
 import numpy as np

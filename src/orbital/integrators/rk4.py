@@ -21,9 +21,8 @@ class RK4:
     Parameters
     ----------
     step_s
-        Maximum step, s. Each interval between output times is split into
-        the fewest equal steps no longer than this, so every output time is
-        hit exactly rather than interpolated.
+        Maximum step, s; output intervals are split into equal steps so
+        every output time is hit exactly.
     """
 
     step_s: float

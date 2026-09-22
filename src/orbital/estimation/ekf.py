@@ -1,24 +1,10 @@
-"""Extended Kalman filter.
+"""Extended Kalman filter with Joseph-form update.
 
-Predict (linearised about the current estimate)::
+Equations::
 
-    x-  = phi(x, t0, t1)                  full nonlinear propagation
-    P-  = Phi P Phi^T + Q                 Phi from the variational equations
-
-Update::
-
-    y = z - h(x-),    H = dh/dx at x-
-    S = H P- H^T + R,     K = P- H^T S^-1
-    x+ = x- + K y
-    P+ = (I - K H) P- (I - K H)^T + K R K^T     (Joseph form)
-
-The Joseph form keeps P+ symmetric positive semi-definite under round-off,
-which the short form ``(I - K H) P-`` does not guarantee.
-
-What the EKF assumes: that h and phi are close to linear over the spread of
-P. When P is large compared with the curvature of either, the mean is
-biased by the neglected second-order terms and P is too small -- the filter
-becomes confidently wrong. See ``scripts/run_estimation.py``.
+    x- = phi(x),  P- = Phi P Phi^T + Q
+    K  = P- H^T S^-1,  S = H P- H^T + R
+    P+ = (I - K H) P- (I - K H)^T + K R K^T
 """
 from __future__ import annotations
 

@@ -1,22 +1,10 @@
-"""Phase 2 benchmark: EKF vs UKF orbit determination from ground tracking.
+"""EKF vs UKF orbit determination from ground range/range-rate tracking.
 
-Truth: a 7000 km, 51.6 deg orbit under two-body + J2, propagated with the
-6-DOF propagator for two revolutions. Three stations (Goldstone, Canberra,
-Madrid; 10 deg mask) take range + range-rate every 60 s while in view
-(sigma 10 m, 1 cm/s). The first pass starts 25 min in; then there is a
-73 min gap before the next one.
+7000 km, 51.6 deg orbit, two-body + J2, two revolutions; three stations, 10 m /
+1 cm/s noise, 60 s cadence. Compares a precise (10 m, 1 cm/s) and a TLE-grade
+(1 km, 1 m/s) prior, then diagnoses the EKF across the longest tracking gap.
 
-Two initial uncertainties, same everything else:
-
-  precise    10 m / 1 cm/s per axis   -- both filters should be consistent
-  TLE-grade  1 km / 1 m/s per axis    -- the EKF loses consistency
-
-For the TLE-grade case the script also isolates *where* the EKF fails, by
-comparing each filter's covariance prediction across the long gap with a
-Monte Carlo cloud pushed through the full nonlinear dynamics.
-
-Monte Carlo results are cached to data/estimation_mc.npz; --force reruns.
-
+MC results are cached in data/estimation_mc.npz.
 Run: python scripts/run_estimation.py [--runs N] [--force]
 """
 from __future__ import annotations
@@ -177,7 +165,7 @@ def figures(data: dict[str, np.ndarray]) -> None:
         for p in passes:
             ax.axvspan(p[0], p[-1], color=BAND, lw=0, zorder=0)
 
-    # Figure 6: one run's along-track error against its 3-sigma, TLE-grade prior.
+    # fig6: one run's along-track error vs 3-sigma, TLE-grade prior.
     fig, axes = plt.subplots(1, 2, figsize=(7.2, 2.7), sharey=True, constrained_layout=True)
     for ax, f in zip(axes, FILTERS, strict=True):
         k = f"TLE-grade/{f.name}"
@@ -201,7 +189,7 @@ def figures(data: dict[str, np.ndarray]) -> None:
     save(fig, "fig6_estimation_error")
     plt.close(fig)
 
-    # Figure 7: averaged NEES for both priors, and position RMSE.
+    # fig7: averaged NEES for both priors, and position RMSE.
     lo, hi = cs.average_bounds(6, n, CONFIDENCE)
     fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.6), constrained_layout=True)
     for ax, case, tag in ((axes[0], "precise", "a"), (axes[1], "TLE-grade", "b")):

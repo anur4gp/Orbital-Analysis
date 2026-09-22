@@ -1,11 +1,6 @@
-"""Earth constants for the 6-DOF dynamics.
+"""EGM96 / WGS-84 Earth constants (km, s).
 
-Units follow :mod:`orbital.conventions`: km, s, kg.
-
-These are EGM96 / WGS-84 values. The SGP4 code in :mod:`orbital.sgp4tools`
-deliberately does **not** use them: SGP4 is defined against WGS-72 and its
-output is only meaningful with the constants it was fitted with. The two sets
-differ in the fourth significant figure of R_E and J2, so they are kept apart.
+SGP4 uses its own WGS-72 constants; do not mix the two.
 """
 from __future__ import annotations
 

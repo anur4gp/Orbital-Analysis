@@ -14,8 +14,7 @@ A short report covering the whole project — the conjunction pipeline, the
 6-DOF propagator, the EKF/UKF comparison, the parameter campaign, and the
 negative results — is in [`writeup/report.tex`](writeup/report.tex), with
 the compiled PDF at [`writeup/report.pdf`](writeup/report.pdf). Regenerate
-the PDF after editing the source. The running log with every measured number
-is [`writeup/project_log.tex`](writeup/project_log.tex).
+the PDF after editing the source.
 
 ## Headline results
 
@@ -25,7 +24,7 @@ section further down says which one and how to rerun it.
 | Result | Number | Where |
 |---|---|---|
 | Surrogate vs Monte Carlo at matched accuracy (~7% in Pc) over a 337,789-pair screen | **~5,300x cheaper**, break-even at 64 conjunctions | [report](writeup/report.tex), fig3 |
-| Triage: catalog discarded at 100% recall of high-risk events | **99.1%** (keeps 0.92%) vs 1.41% for an analyst miss-distance cut, which also drops to 97.2% recall when split by object | [Phase 4 results](writeup/phase4_results.tex) |
+| Triage: catalog discarded at 100% recall of high-risk events | **99.1%** (keeps 0.92%) vs 1.41% for an analyst miss-distance cut, which also drops to 97.2% recall when split by object | [triage results](writeup/phase4_results.tex) |
 | 6-DOF propagator vs closed-form torque-free precession | **2e-11 rad** attitude error; energy and angular momentum to 2e-13 | `scripts/validate_6dof.py` |
 | EKF vs UKF from TLE-grade initial uncertainty (1 km) | EKF **NEES 1019** (inconsistent), UKF 8.8; 4x worse final error | `scripts/run_estimation.py` |
 | Where each filter stays consistent, over a 6-parameter sweep | EKF consistent at **28%** of design points, UKF at **72%** | `scripts/run_campaign.py` |
@@ -52,7 +51,7 @@ regression succeeds; and MaxPro's 2-3x advantage on its own design criterion
   chi-square consistency bands, invariances verified numerically -- rather
   than comparisons against stored output. `tests/` reads as the argument for
   why the code is right.
-- **Mistakes are recorded**, in commit messages and in `CLAUDE.md`: a test
+- **Mistakes are recorded** in commit messages: a test
   that passed for the wrong reason, a wrong first hypothesis about the EKF,
   thresholds set in-sample, a figure whose reference point made its own
   message invisible.
@@ -76,9 +75,8 @@ src/orbital/
   triage/             pre-Pc features and full-recall evaluation
 scripts/              runnable entry points (benchmarks, dataset builds, figures)
 tests/                offline pytest suite
-tools/                behaviour lock used during the package migration
 reference/lhd/        parallel-tempering design code (C++/pybind11)
-writeup/              report, running project log, figures
+writeup/              report, result tables, figures
 ```
 
 ## Install
@@ -248,8 +246,8 @@ data.
 
 ## Monte Carlo campaigns
 
-Phase 2 compared the filters at two points in parameter space. The campaign
-runner maps the space: six parameters — initial position and velocity
+The orbit-determination benchmark compares the filters at two points in
+parameter space. The campaign runner maps the space: six parameters — initial position and velocity
 uncertainty, range and range-rate noise, measurement cadence, elevation mask
 — sampled on a MaxPro space-filling design, with a Monte Carlo at every point.
 
@@ -282,7 +280,7 @@ Consistency rate against initial position uncertainty:
 | EKF | 50% | 38% | 19% | 6% |
 | UKF | 81% | 56% | 75% | 75% |
 
-The sweep turns the Phase 2 result into a boundary: the EKF's consistency
+The sweep turns the two-point comparison into a boundary: the EKF's consistency
 falls off steadily as the prior widens, while the UKF's is roughly flat. The
 accuracy cost follows the same shape — the median EKF/UKF final-RMSE ratio is
 1.30, but the 90th percentile is 1.7×10³, because past about 2 km of initial

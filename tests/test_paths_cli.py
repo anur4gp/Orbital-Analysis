@@ -12,9 +12,6 @@ from orbital import paths
 
 class TestProjectRoot:
     def test_finds_the_root_by_pyproject(self):
-        """Resolved by searching upward, not by counting directory levels --
-        the bug the Phase 0 behaviour lock caught.
-        """
         assert (paths.PROJECT_ROOT / "pyproject.toml").is_file()
         assert paths.DATA_DIR == paths.PROJECT_ROOT / "data"
 

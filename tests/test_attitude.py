@@ -1,8 +1,4 @@
-"""Quaternion, DCM and Euler-angle conversions.
-
-Assertions are algebraic identities -- round trips, composition agreeing with
-matrix products, orthogonality -- so they hold for any correct implementation.
-"""
+"""Quaternion, DCM and Euler-angle conversions."""
 from __future__ import annotations
 
 import numpy as np

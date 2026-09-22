@@ -1,31 +1,11 @@
 """Catalog-wide conjunction screening.
 
-Phase 4 needs low-risk conjunctions, which cdm_public does not contain: its
-rows are all EMERGENCY_REPORTABLE with PC > 1e-4. Negatives have to be
-manufactured by screening the catalog directly.
+1. Propagate every object onto a shared coarse grid.
+2. Per-pair local minima of separation on a rolling 3-step window.
+3. Analytic linear-motion miss estimate to discard most minima.
+4. Parabolic SGP4 refinement of survivors to a precise TCA.
 
-The screen is a three-stage sieve:
-
-  1. Coarse propagation of every object onto a shared time grid.
-  2. Per-pair local minima of separation, detected on a rolling three-step
-     window so memory stays O(pairs) rather than O(pairs x timesteps).
-  3. An analytic linear-motion estimate of the true minimum, which discards
-     the great majority of local minima without any further propagation.
-  4. Parabolic refinement of the survivors to a precise TCA.
-
-Stage 2's threshold must account for how far objects move between samples.
-At 15 km/s relative speed a 60 s grid steps 900 km, so a pair passing within
-1 km can appear no closer than ~450 km at any sampled instant. Screening at
-a small threshold on a coarse grid silently misses almost everything, so the
-coarse gate is deliberately wide -- which leaves nearly every pair as a
-candidate.
-
-Stage 3 is what makes that affordable. Near closest approach relative motion
-is very nearly rectilinear, so from the sampled relative position and
-velocity the true minimum separation follows in closed form: the component
-of `dr` perpendicular to `dv`. That estimate is vectorized over all
-candidates at once and is accurate to well within the screening margin, so
-only genuine near misses reach the expensive per-pair SGP4 refinement.
+The coarse gate must be wide: at 16 km/s a 60 s step moves ~960 km.
 """
 from __future__ import annotations
 
@@ -38,11 +18,11 @@ from sgp4.api import Satrec, SatrecArray
 from orbital.sgp4tools.propagation import _to_jd, satrec_from_tle
 from orbital.sgp4tools.tle import TLE
 
-# Widest plausible closing speed in LEO (head-on, ~7.7 km/s each).
+# Upper bound on LEO closing speed.
 MAX_VREL_KM_S = 16.0
 
 
-#: What refine() returns: (TCA, miss km, relative speed km/s, r1, v1, r2, v2).
+# (TCA, miss km, vrel km/s, r1, v1, r2, v2)
 RefinedApproach = tuple[datetime, float, float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 
 
@@ -64,55 +44,23 @@ class Conjunction:
 
 
 def coarse_gate_km(step_seconds: float, refine_threshold_km: float) -> float:
-    """Separation gate that cannot miss an approach closer than the target.
-
-    Between samples the pair closes by at most ``MAX_VREL_KM_S * step``, so
-    the true minimum can sit up to half that below the smallest sampled
-    separation.
-
-    Parameters
-    ----------
-    step_seconds
-        Sampling interval of the coarse grid, s.
-    refine_threshold_km
-        Separation of interest, km: approaches closer than this must not be
-        missed.
-
-    Returns
-    -------
-    float
-        Gate on sampled separation, km.
-    """
+    """Sampled-separation gate, km, that cannot miss an approach within ``refine_threshold_km``."""
     return refine_threshold_km + 0.5 * MAX_VREL_KM_S * step_seconds
 
 
 def propagate_catalog(
     tles: list[TLE], start: datetime, minutes: float, step_seconds: float
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Propagate every object onto a shared grid. Returns (offsets, r, ok).
-
-    Parameters
-    ----------
-    tles
-        Element sets to propagate.
-    start
-        Grid start epoch, UTC.
-    minutes
-        Grid length, minutes.
-    step_seconds
-        Grid spacing, s.
+    """Propagate every object onto a shared grid.
 
     Returns
     -------
-    offsets : numpy.ndarray
+    offsets
         Seconds since ``start``, shape (n_times,).
-    r, v : numpy.ndarray
-        Positions (km) and velocities (km/s) in TEME, shape
-        (n_objects, n_times, 3).
-    ok : numpy.ndarray
-        Boolean mask of objects whose SGP4 calls all succeeded. Decayed
-        objects raise error codes and must be dropped rather than silently
-        producing garbage.
+    r, v
+        TEME position (km) and velocity (km/s), shape (n_objects, n_times, 3).
+    ok
+        Mask of objects with no SGP4 errors.
     """
     sats = [satrec_from_tle(t) for t in tles]
     offsets = np.arange(0.0, minutes * 60.0 + step_seconds, step_seconds)
@@ -130,43 +78,20 @@ def find_candidates(
     r: np.ndarray, v: np.ndarray, gate_km: float, keep_threshold_km: float,
     step_seconds: float, pair_chunk: int = 2_000_000,
 ) -> list[tuple[int, int, int]]:
-    """Local minima of separation that could plausibly be genuine near misses.
+    """Local separation minima whose linear-motion miss is within ``keep_threshold_km``.
 
-    Scans the time grid keeping only three consecutive separation vectors, so
-    memory is O(pairs) rather than O(pairs x timesteps). A pair can have
-    several conjunctions in one window, so every local minimum is kept, not
-    just the global one.
-
-    Each surviving local minimum is then screened analytically: with relative
-    position ``dr`` and velocity ``dv``, rectilinear motion reaches its
-    closest approach at ``t* = -(dr.dv)/|dv|^2``, giving a minimum separation
-    of ``|dr + t* dv|``. Only minima whose linear estimate falls inside the
-    keep threshold (plus a margin for curvature) go on to SGP4 refinement.
-
-    Parameters
-    ----------
-    r, v
-        Positions (km) and velocities (km/s), shape (n_objects, n_times, 3).
-    gate_km
-        Sampled-separation gate, km, from :func:`coarse_gate_km`.
-    keep_threshold_km
-        Analytic minimum separation to keep, km.
-    step_seconds
-        Grid spacing, s, used to size the curvature margin.
-    pair_chunk
-        Pairs evaluated per block, bounding peak memory.
+    Memory is O(pairs): only three consecutive time steps are held. Linear
+    miss is ``|dr + t* dv|`` with ``t* = -(dr.dv)/|dv|^2``.
 
     Returns
     -------
     list of tuple
-        ``(i, j, time_index)`` per surviving local minimum, with ``i`` and
-        ``j`` indexing the propagated arrays.
+        ``(i, j, time_index)`` per surviving minimum.
     """
     n, n_times, _ = r.shape
     iu, ju = np.triu_indices(n, k=1)
     n_pairs = iu.size
-    # Curvature over half a sampling step is small but not zero; the margin
-    # keeps the linear filter conservative rather than exact.
+    # Margin for curvature over half a step.
     margin = keep_threshold_km + 0.05 * MAX_VREL_KM_S * step_seconds
 
     def separations(t: int) -> np.ndarray:
@@ -214,30 +139,9 @@ def refine(
     sat_a: Satrec, sat_b: Satrec, t_center: datetime, half_window_s: float,
     iterations: int = 8,
 ) -> RefinedApproach | None:
-    """Refine a candidate to its true TCA by parabolic interpolation.
+    """Refine a candidate TCA by iterated three-point parabolic fits.
 
-    Near closest approach relative motion is nearly rectilinear, so squared
-    separation is nearly quadratic in time and a three-point parabola locates
-    the vertex directly. The bracket shrinks each iteration, reaching
-    sub-millisecond timing -- necessary because at 15 km/s even one second of
-    timing error is 15 km of separation error.
-
-    Parameters
-    ----------
-    sat_a, sat_b
-        SGP4 propagators for the two objects.
-    t_center
-        Starting estimate of closest approach, UTC.
-    half_window_s
-        Initial half-bracket, s.
-    iterations
-        Refinement steps; the bracket halves each time.
-
-    Returns
-    -------
-    tuple or None
-        ``(tca, miss_km, vrel_km_s, r1, v1, r2, v2)``, or None if either
-        object returns an SGP4 error near the minimum.
+    The bracket halves each iteration. Returns None on an SGP4 error.
     """
     best_t, h = t_center, half_window_s
     for _ in range(iterations):
@@ -270,28 +174,7 @@ def refine(
 def screen(tles: list[TLE], start: datetime, minutes: float = 1440.0,
            step_seconds: float = 60.0, refine_threshold_km: float = 50.0,
            verbose: bool = True) -> list[Conjunction]:
-    """Full screening pass over a catalog.
-
-    Parameters
-    ----------
-    tles
-        Catalog to screen.
-    start
-        Window start, UTC.
-    minutes
-        Window length, minutes.
-    step_seconds
-        Coarse grid spacing, s.
-    refine_threshold_km
-        Keep conjunctions closer than this, km.
-    verbose
-        Print per-stage counts, which is how the sieve's yield is monitored.
-
-    Returns
-    -------
-    list of Conjunction
-        Refined close approaches within ``refine_threshold_km``.
-    """
+    """Screen a catalog; returns refined approaches within ``refine_threshold_km``."""
     offsets, r, v, ok = propagate_catalog(tles, start, minutes, step_seconds)
     kept = np.flatnonzero(ok)
     if verbose:

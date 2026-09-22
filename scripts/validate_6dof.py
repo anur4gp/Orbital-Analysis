@@ -1,8 +1,4 @@
-"""6-DOF propagator validation: conservation, precession, quaternion norm.
-
-Prints a summary table and writes writeup/figures/fig5_6dof_validation.{pdf,png}.
-The pass/fail assertions live in tests/test_dynamics.py; this script shows the
-same cases as curves, so the error growth is visible rather than just bounded.
+"""6-DOF propagator validation curves (fig5); assertions live in tests/test_dynamics.py.
 
 Run: python scripts/validate_6dof.py
 """
@@ -21,8 +17,7 @@ from orbital.dynamics import diagnostics as dg
 from orbital.integrators import DOP853, RK4
 from orbital.plotting import AQUA, BLUE, FIGURE_DIR, INK2, MUTED, ORANGE, despine, save, style
 
-#: Log axes cannot show an exact zero; errors are clamped to this floor,
-#: which is below float64 resolution for these quantities.
+# Floor for zero errors on log axes.
 FLOOR = 1e-17
 
 T = np.linspace(0.0, 3000.0, 301)

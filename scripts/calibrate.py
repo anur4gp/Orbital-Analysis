@@ -1,13 +1,6 @@
-"""Calibrate the Option B covariance scale against observed TLE error.
+"""Fit the RTN covariance scale sigma_R to the rebuilt-vs-reported miss spread.
 
-The only observable per event is how far the TLE-rebuilt miss distance sits
-from the reported MIN_RNG. Treating the reported miss as near-truth, the
-rebuilt separation is the truth vector plus an error drawn from the combined
-covariance. sigma_R is chosen so the model reproduces the observed spread.
-
-The anisotropy ratios k_T and k_N stay FIXED -- only the scale is fit.
-
-Run: python scripts/calibrate.py
+k_T and k_N stay fixed. Run: python scripts/calibrate.py
 """
 from __future__ import annotations
 
@@ -31,8 +24,6 @@ from orbital.sgp4tools.spacetrack import SpaceTrack
 N_EVENTS = 40
 N_DRAWS = 20_000
 SEED = 12345
-# Below this relative speed the short-term encounter assumption fails and the
-# geometry is not a simple crossing; excluded from calibration.
 MIN_VREL_KM_S = 1.0
 
 
@@ -54,11 +45,7 @@ def geometries():
 
 
 def simulate_errors(geoms, sigma_r_km, unit_normals):
-    """Predicted |rebuilt - reported| for each event, at this sigma_R.
-
-    Covariance scales as sigma_R^2, so a unit-scale error sample can be drawn
-    once and rescaled -- no resampling per candidate value.
-    """
+    """Predicted |rebuilt - reported| per event; unit-scale draws are rescaled by sigma_R."""
     predicted = []
     for g, z in zip(geoms, unit_normals, strict=False):
         unit_cov = combined_covariance(
@@ -69,8 +56,7 @@ def simulate_errors(geoms, sigma_r_km, unit_normals):
         factor = np.linalg.cholesky(unit_cov)
         errors = (z @ factor.T) * sigma_r_km
 
-        # Truth separation: reported magnitude, direction unknown, so average
-        # over isotropic directions.
+        # Reported magnitude, isotropic direction.
         directions = z[:, :3] / np.linalg.norm(z[:, :3], axis=1, keepdims=True)
         truth = directions * g.reported_miss_km
         simulated = np.linalg.norm(truth + errors, axis=1)
@@ -110,7 +96,6 @@ def main() -> int:
     ages = np.array([max(abs(g.tle_age1_days), abs(g.tle_age2_days)) for g in geoms])
     print(f"residual vs TLE age correlation: "
           f"{np.corrcoef(observed - predicted, ages)[0, 1]:+.3f}")
-    print("  (a strong positive value here argues for the Option D time-growth term)")
     return 0
 
 

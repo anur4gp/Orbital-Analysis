@@ -1,9 +1,4 @@
-"""CelesTrak and Space-Track clients: caching, throttling, auth handling.
-
-No network. ``requests`` is monkeypatched, the caches are redirected into
-``tmp_path``, and the rate limiter is driven with a fake clock, so the
-sliding-window arithmetic is tested without anyone sleeping.
-"""
+"""CelesTrak and Space-Track clients: caching, throttling, auth handling."""
 from __future__ import annotations
 
 import json
@@ -73,9 +68,6 @@ class TestCelesTrakCaching:
         assert len(calls) == 2
 
     def test_stale_cache_beats_a_network_failure(self, tle_cache, monkeypatch):
-        """CelesTrak throttles aggressively, so a stale copy is preferable to
-        failing the run.
-        """
         monkeypatch.setattr(celestrak.requests, "get", lambda *a, **k: FakeResponse(ISS_TEXT))
         celestrak.fetch_gp(catnr=25544)
 

@@ -1,9 +1,4 @@
-"""One-time probe: what does this account actually get from Space-Track?
-
-The decisive question for Phase 2 is whether `cdm_public` includes the state
-covariance matrices. If it does, the Monte Carlo baseline samples real
-operational uncertainty; if not, covariances have to be synthesized and that
-becomes a stated assumption in the writeup.
+"""Probe which fields Space-Track's cdm_public returns (notably covariance).
 
 Run: python scripts/probe_cdm.py
 """
@@ -11,8 +6,7 @@ from __future__ import annotations
 
 from orbital.sgp4tools.spacetrack import SpaceTrack
 
-# CDM covariance is reported in the RTN/RSW frame: 21 lower-triangular terms
-# per object, named like CR_R, CT_R, CT_T, ... for objects 1 and 2.
+# CCSDS CDM RTN covariance terms: CR_R, CT_R, CT_T, ...
 COV_PREFIXES = ("CR_", "CT_", "CN_", "CRDOT_", "CTDOT_", "CNDOT_")
 
 
@@ -34,7 +28,7 @@ def main() -> int:
         for f in cov:
             print(f"    {f} = {rows[0].get(f)!r}")
         if not cov:
-            print("    none -- Phase 2 will need a synthesized covariance model")
+            print("    none -- covariance must be synthesized")
 
         print("\nall fields:")
         for f in fields:

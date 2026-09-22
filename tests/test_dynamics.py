@@ -1,15 +1,4 @@
-"""6-DOF dynamics validated against physics, not stored values.
-
-- torque-free motion conserves rotational energy and the inertial angular
-  momentum vector;
-- an axisymmetric body follows the closed-form torque-free precession;
-- the quaternion norm stays within tolerance, and projection is what keeps it
-  there;
-- two-body and J2 orbits conserve their integrals and J2 regresses the node at
-  the analytic secular rate;
-- the gravity-gradient torque matches a direct sum over point masses and
-  produces the analytic small-angle pitch libration.
-"""
+"""6-DOF dynamics validated against physics, not stored values."""
 from __future__ import annotations
 
 import numpy as np
@@ -163,14 +152,7 @@ class TestTorqueFreeConservation:
 
 
 class TestSymmetricPrecession:
-    """Closed-form torque-free motion of an axisymmetric body.
-
-    With I1 = I2 = It, the body rates rotate about the symmetry axis at
-    lambda = (I3 - It) omega3 / It, and the symmetry axis cones about the fixed
-    H at phi_dot = |H| / It. The full attitude is therefore
-
-        q(t) = R(H_hat, phi_dot t) ⊗ q0 ⊗ R(e3, -lambda t)
-    """
+    """Closed form: q(t) = R(H_hat, |H|/It t) ⊗ q0 ⊗ R(e3, -(I3 - It) w3/It t)."""
 
     W0 = np.array([0.05, 0.02, 0.3])
     Q0 = quat.from_axis_angle([0.3, -1.0, 0.5], 1.1)
@@ -291,9 +273,7 @@ class TestOrbits:
         assert np.max(np.linalg.norm(h - h[0], axis=1)) / np.linalg.norm(h[0]) < 1e-10
 
     def test_j2_integrals_and_nodal_regression(self):
-        """J2 conserves energy and h_z (axisymmetry) but not the full h vector,
-        and regresses the node at -3/2 n J2 (R/a)^2 cos i.
-        """
+        """J2 conserves energy and h_z; node rate -3/2 n J2 (R/a)^2 cos i."""
         inclination = np.radians(50.0)
         gravity = (TwoBodyGravity(), J2Gravity())
         body = RigidBody(POINT, gravity)
@@ -374,9 +354,6 @@ class TestGravityGradient:
         assert np.max(np.abs(trajectory.omega_rad_s[:, :2])) < 1e-12
 
     def test_minimum_axis_off_vertical_is_unstable(self):
-        """Swap I1 and I2: the long axis now lies along-track, and the
-        equilibrium becomes a saddle -- a 0.01 rad offset grows to a tumble.
-        """
         _, pitch, _ = self.pitch_history(InertiaTensor.diagonal(50.0, 20.0, 60.0), 0.01, 5)
         assert np.max(np.abs(pitch)) > 1.0
 

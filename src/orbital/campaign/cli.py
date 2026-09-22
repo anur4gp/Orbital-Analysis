@@ -1,13 +1,6 @@
-"""Command-line entry point: ``python -m orbital.campaign``.
+"""``python -m orbital.campaign``: the container entrypoint.
 
-This is what the container runs. It computes rows and writes parquet; it does
-not plot, so the image needs no matplotlib and no display. Aggregation and
-figures are ``scripts/run_campaign.py``, run once over the merged shards.
-
-Sharding for batch services: ``--shard`` defaults to the array-index
-environment variable that AWS Batch (``AWS_BATCH_JOB_ARRAY_INDEX``) or GCP
-Batch (``BATCH_TASK_INDEX``) sets, so the same command works in both without
-a wrapper script.
+``--shard`` defaults to ``AWS_BATCH_JOB_ARRAY_INDEX`` / ``BATCH_TASK_INDEX``.
 """
 from __future__ import annotations
 
@@ -23,8 +16,6 @@ from orbital.paths import DATA_DIR
 
 ARRAY_INDEX_VARS = ("AWS_BATCH_JOB_ARRAY_INDEX", "BATCH_TASK_INDEX")
 
-#: Base output directory when ``--out`` is not given. The container sets this
-#: to its writable mount, so a bare ``docker run`` still lands somewhere valid.
 OUT_DIR_VAR = "ORBITAL_CAMPAIGN_OUT"
 
 

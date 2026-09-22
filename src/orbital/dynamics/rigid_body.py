@@ -1,17 +1,10 @@
-"""The 6-DOF equations of motion and the propagation entry point.
+"""6-DOF equations of motion and propagation.
 
-Translation (ECI_J2000, per unit mass)::
+Translation in ECI_J2000 (per unit mass), rotation in BODY axes::
 
-    dr/dt = v
-    dv/dt = sum of force-model accelerations
-
-Rotation (BODY axes)::
-
-    dq/dt     = 1/2 q ⊗ [0, omega]
-    I domega/dt = tau - omega x (I omega)          (Euler's equations)
-
-Translation and rotation are coupled only through the models: a torque may
-depend on position (gravity gradient), a force on attitude (drag, SRP).
+    dr/dt = v,  dv/dt = sum a_i
+    dq/dt = 1/2 q ⊗ [0, omega]
+    I domega/dt = tau - omega x (I omega)
 """
 from __future__ import annotations
 
@@ -29,7 +22,6 @@ from orbital.dynamics.state import STATE_SIZE, Q, R, RigidBodyState, V, W
 from orbital.dynamics.torques import TorqueModel
 from orbital.integrators.base import Constraint, IntegrationResult, Integrator
 
-#: Default projection threshold for the quaternion norm, dimensionless.
 QUATERNION_NORM_TOL = 1e-12
 
 
@@ -108,21 +100,8 @@ class RigidBody:
     def derivative(self, t_s: float, y: FloatArray) -> FloatArray:
         """Right-hand side of the 13-state ODE.
 
-        The kinematics integrate the raw quaternion so that norm drift stays
-        visible to the constraint check; the force and torque models see a
-        normalised copy, so they are never evaluated at a scaled attitude.
-
-        Parameters
-        ----------
-        t_s
-            Time since the reference epoch, s.
-        y
-            Packed 13-element state.
-
-        Returns
-        -------
-        numpy.ndarray
-            Time derivative of the packed state, shape (13,).
+        Kinematics use the raw quaternion (so drift stays measurable); force
+        and torque models see a normalised copy.
         """
         state = RigidBodyState.from_vector(y, t_s)
         mp = self.mass_properties
@@ -160,20 +139,12 @@ class RigidBody:
         initial
             Starting state; must be in an inertial frame (ECI_J2000).
         t_eval_s
-            Output times, s since the reference epoch, strictly increasing.
-            The first entry is the start time and is normally ``initial.t_s``.
+            Output times, s, strictly increasing; the first is the start time.
         integrator
             Any :class:`~orbital.integrators.base.Integrator`.
         quaternion_tol
             Norm-violation threshold above which the quaternion is projected
-            back to unit length. ``None`` disables projection -- useful only
-            for measuring the drift it prevents.
-
-        Raises
-        ------
-        ValueError
-            If the initial state is not in ECI_J2000. TEME states from SGP4
-            must be converted explicitly first.
+            back to unit length; ``None`` disables projection.
         """
         if initial.frame is not Frame.ECI_J2000:
             raise ValueError(

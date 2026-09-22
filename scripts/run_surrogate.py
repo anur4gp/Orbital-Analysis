@@ -1,13 +1,7 @@
-"""Phase 3 step 2: train the surrogate and benchmark it against brute force.
+"""Train the log10(Pc) GP surrogate and benchmark MaxPro vs random LHD vs uniform designs.
 
-Labels come from the polar quadrature, not the Monte Carlo. That is forced,
-not preferred: Pc spans ~13 orders of magnitude over the parameter box, and
-brute-force MC resolves under a third of design points even at 1e8 draws --
-roughly 30% sit below Pc = 1e-12, which no Monte Carlo reaches. The
-quadrature is exact here (it agrees with MC to within MC error bars wherever
-MC works at all, max |z| = 1.4 in Phase 2), so it serves as ground truth,
-and the MC stands in for the general case where no closed form exists.
-
+Labels come from quadrature: Pc spans ~13 decades over the box and MC cannot
+resolve most of it.
 Run: python scripts/run_surrogate.py
 """
 from __future__ import annotations
@@ -25,8 +19,7 @@ N_TEST = 3000
 SIZES = (32, 64, 128, 256)
 SEED = 11
 FLOOR = 1e-300
-# Uniform and random-LHD designs are random draws, so a single realization
-# says nothing. Each is repeated and reported as a mean over replicates.
+# All designs are stochastic, so each is averaged over replicates.
 N_REPLICATES = 5
 
 
@@ -54,10 +47,6 @@ def main() -> int:
     for n in SIZES:
         for name in ("maxpro", "random_lhd", "uniform"):
             rmses, fits = [], []
-            # Every design type gets the same number of replicates. Parallel
-            # tempering is seeded from random_device, so repeated calls give
-            # genuinely different designs -- comparing one PT run against five
-            # random draws would understate the baselines' variance.
             reps = N_REPLICATES
             for rep in range(reps):
                 if name == "uniform":
@@ -88,7 +77,6 @@ def main() -> int:
         un = results[(n, 'uniform')].mean()
         print(f"  n={n:>4}:  vs random LHD {rl/mp:>5.2f}x   vs uniform {un/mp:>5.2f}x")
 
-    # Points needed by each design to reach the accuracy MaxPro hits at n=64.
     target = results[(64, 'maxpro')].mean()
     print(f"\ntarget accuracy = MaxPro at n=64  (RMSE {target:.3f} orders of magnitude)")
     for name in ("random_lhd", "uniform"):

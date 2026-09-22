@@ -1,11 +1,4 @@
-"""Catalog screening: the geometry of the sieve, not stored counts.
-
-``find_candidates`` is driven with synthetic straight-line motion, where the
-closest approach is known in closed form, so the analytic filter can be
-checked against the exact answer. The SGP4 stages are exercised on the frozen
-ISS element set plus shifted copies of it, which manufactures conjunctions
-with a known miss distance without any network access.
-"""
+"""Catalog screening: the geometry of the sieve, not stored counts."""
 from __future__ import annotations
 
 from datetime import timedelta
@@ -27,11 +20,7 @@ from orbital.sgp4tools.tle import checksum, parse_tle
 
 def linear_pair(miss_km: float, approach_speed_km_s: float, n_times: int = 21,
                 step_s: float = 60.0):
-    """Two objects on straight lines whose closest approach is ``miss_km``.
-
-    Object 0 sits still; object 1 passes it along +x, offset in z. Closest
-    approach falls exactly on the middle sample.
-    """
+    """Straight-line pair whose closest approach, ``miss_km``, is the middle sample."""
     t = (np.arange(n_times) - n_times // 2) * step_s
     r = np.zeros((2, n_times, 3))
     v = np.zeros((2, n_times, 3))
@@ -43,25 +32,19 @@ def linear_pair(miss_km: float, approach_speed_km_s: float, n_times: int = 21,
 
 class TestCoarseGate:
     def test_gate_covers_the_worst_case_closing_distance(self):
-        """A pair closes by at most MAX_VREL * step between samples, so half
-        that must be added to the target threshold.
-        """
         assert coarse_gate_km(60.0, 50.0) == pytest.approx(50.0 + 0.5 * MAX_VREL_KM_S * 60)
 
     def test_gate_grows_with_the_step(self):
         assert coarse_gate_km(120.0, 50.0) > coarse_gate_km(60.0, 50.0)
 
     def test_documented_width(self):
-        """CLAUDE.md quotes 530 km at 60 s; the rule must still give that."""
+        """530 km at a 60 s step."""
         assert coarse_gate_km(60.0, 50.0) == pytest.approx(530.0)
 
 
 class TestFindCandidates:
     def test_finds_a_close_approach_the_grid_never_samples(self):
-        """The whole point of the analytic filter: at 10 km/s and a 60 s grid
-        the pair is never sampled closer than 300 km, yet it passes within
-        1 km.
-        """
+        """Never sampled closer than 300 km, yet passes within 1 km."""
         r, v = linear_pair(miss_km=1.0, approach_speed_km_s=10.0, step_s=60.0)
         separations = np.linalg.norm(r[0] - r[1], axis=1)
         assert separations.min() == pytest.approx(1.0)  # midpoint sample
@@ -78,9 +61,6 @@ class TestFindCandidates:
         assert [t for _, _, t in hits] == [10]
 
     def test_keeps_both_of_two_separate_approaches(self):
-        """A pair can have several conjunctions in one window; every local
-        minimum must survive, not just the deepest.
-        """
         n = 41
         r = np.zeros((2, n, 3))
         v = np.zeros((2, n, 3))
@@ -108,11 +88,7 @@ class TestFindCandidates:
 
 
 def shifted_copy(tle, seconds: float, catalog_number: int):
-    """The same orbit with its mean anomaly advanced by ``seconds``.
-
-    Two objects on one orbit separated in phase give a known, controllable
-    along-track separation -- a conjunction with an answer to check against.
-    """
+    """The same orbit with its mean anomaly advanced by ``seconds``."""
     mean_motion = float(tle.line2[52:63])           # rev/day
     mean_anomaly = float(tle.line2[43:51])          # deg
     advanced = (mean_anomaly + 360.0 * mean_motion * seconds / 86400.0) % 360.0
@@ -131,9 +107,6 @@ class TestSGP4Stages:
         assert ok.all()
 
     def test_refine_recovers_the_true_minimum(self, iss_tle, epoch):
-        """Two objects 2 s apart in phase: they never collide, and the refined
-        miss distance must match their along-track separation (~15 km).
-        """
         other = shifted_copy(iss_tle, 2.0, 90002)
         sat_a, sat_b = satrec_from_tle(iss_tle), satrec_from_tle(other)
         result = refine(sat_a, sat_b, epoch, 60.0)
@@ -163,9 +136,6 @@ class TestSGP4Stages:
 @pytest.mark.slow
 class TestScreenEndToEnd:
     def test_finds_the_planted_conjunction(self, iss_tle, epoch, capsys):
-        """A copy of the ISS 3 s behind it is a 22 km 'conjunction'; the full
-        sieve must report it, with consistent geometry.
-        """
         tles = [iss_tle, shifted_copy(iss_tle, 3.0, 90010)]
         found = screen(tles, epoch, minutes=95.0, step_seconds=60.0,
                        refine_threshold_km=50.0, verbose=True)

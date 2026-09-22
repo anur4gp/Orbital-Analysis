@@ -1,17 +1,7 @@
-"""The integrator interface and the constraint-projection contract.
+"""Integrator interface and constraint projection.
 
-Every integrator takes a right-hand side ``f(t, y)``, an initial state, and
-the output times, and returns an :class:`IntegrationResult`. Units are those
-of the caller's state; time is seconds.
-
-Constraints
------------
-Some states live on a manifold the ODE preserves but a discrete integrator
-does not -- the unit quaternion is the case here. A :class:`Constraint` says
-how to measure the violation and how to project back. Integrators apply the
-projection whenever the violation exceeds ``tolerance`` and report how often
-they did, so drift is handled explicitly and remains visible in the output
-rather than being silently absorbed.
+A :class:`Constraint` (e.g. the unit quaternion) is projected whenever its
+violation exceeds ``tolerance``; the count is reported in the result.
 """
 from __future__ import annotations
 
@@ -57,7 +47,7 @@ class IntegrationResult:
     y
         States at ``t``, shape ``(N, n)``.
     nfev
-        Right-hand-side evaluations -- the cost measure used for comparisons.
+        Right-hand-side evaluations.
     nprojections
         Times the constraint projection was applied.
     max_violation
@@ -87,24 +77,7 @@ class Integrator(Protocol):
         t_eval: ArrayLike,
         constraint: Constraint | None = None,
     ) -> IntegrationResult:
-        """Integrate from ``t_eval[0]`` and report the state at every output time.
-
-        Parameters
-        ----------
-        f
-            Right-hand side ``f(t, y)``, in the caller's units per second.
-        y0
-            Initial state at ``t_eval[0]``.
-        t_eval
-            Output times, s, strictly increasing.
-        constraint
-            Optional state constraint to enforce during the integration.
-
-        Returns
-        -------
-        IntegrationResult
-            States at ``t_eval``, plus cost and projection statistics.
-        """
+        """Integrate from ``t_eval[0]`` and return the state at every output time."""
         ...
 
 

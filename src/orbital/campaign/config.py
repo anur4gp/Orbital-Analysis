@@ -1,9 +1,6 @@
-"""Campaign configuration and provenance.
+"""Campaign configuration and run provenance.
 
-A campaign is fully determined by this config: the same config and seed give
-the same rows, on any number of workers or shards. The config is written
-beside the results and fingerprinted, so a stored run can always be traced
-back to what produced it.
+A config is fingerprinted; the same config and seed give the same rows.
 """
 from __future__ import annotations
 
@@ -32,8 +29,7 @@ class Parameter:
     low, high
         Range limits, in ``unit``.
     log
-        If true the parameter is sampled geometrically, so the design covers
-        orders of magnitude evenly rather than favouring the top decade.
+        Sample geometrically rather than linearly.
     unit
         Unit string, for tables and axis labels.
     """
@@ -51,9 +47,6 @@ class Parameter:
         return float(self.low) + (float(self.high) - float(self.low)) * u
 
 
-#: The swept space. Position and velocity uncertainty span the range from
-#: GNSS-grade to worse than TLE-grade; sensor noise spans metre-class radar
-#: to poor; cadence and mask control how much data a pass yields.
 PARAMETERS: tuple[Parameter, ...] = (
     Parameter("sigma_r0_km", 0.01, 10.0, True, "km"),
     Parameter("sigma_v0_km_s", 1e-5, 1e-2, True, "km/s"),
@@ -73,13 +66,11 @@ class CampaignConfig:
     n_points
         Design size (number of parameter combinations).
     n_trials
-        Monte Carlo trials per design point. Every filter sees the same
-        trials, so filter differences are not sampling noise.
+        Monte Carlo trials per design point (shared by all filters).
     design
         ``maxpro`` (parallel tempering, cached), ``random_lhd`` or ``uniform``.
     seed
-        Base seed. Each point derives its own stream from ``(seed, index)``,
-        so results do not depend on execution order.
+        Base seed; each point derives its stream from ``(seed, index)``.
     revolutions
         Arc length in orbital revolutions.
     semi_major_axis_km, inclination_deg, raan_deg
@@ -134,7 +125,7 @@ class CampaignConfig:
         return replace(self, **changes)
 
     def fingerprint(self) -> str:
-        """Short stable hash of the config -- the campaign's identity."""
+        """Short stable hash of the config."""
         blob = json.dumps(self.to_dict(), sort_keys=True).encode()
         return hashlib.sha256(blob).hexdigest()[:12]
 

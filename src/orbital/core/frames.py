@@ -1,16 +1,7 @@
-"""Earth-fixed <-> inertial rotation and geodetic station coordinates.
+"""ECEF <-> ECI rotation and geodetic station coordinates.
 
-Model: Earth rotates about the ECI_J2000 z-axis at a constant rate, with the
-angle given by IAU-1982 Greenwich mean sidereal time. Precession, nutation
-and polar motion are neglected -- the same pole assumption the J2 model
-makes (see :mod:`orbital.dynamics.forces`). UT1 is taken as UTC unless
-``dut1_s`` is given; |DUT1| < 0.9 s is up to 66 micro-radians of Earth
-rotation, about 0.4 km at the surface.
-
-Within a simulation this model is self-consistent: truth and filter use the
-same rotation, so it does not bias estimation results. It is not accurate
-enough to process real tracking data, which would need the full IAU-2006
-reduction; that is deliberately out of scope here.
+Earth spins about the ECI z-axis with IAU-1982 GMST; precession, nutation and
+polar motion are neglected. Adequate for simulation, not for real tracking data.
 """
 from __future__ import annotations
 
@@ -68,11 +59,7 @@ def geodetic_up(lat_deg: float, lon_deg: float) -> FloatArray:
 
 @dataclass(frozen=True)
 class EarthRotation:
-    """Earth orientation relative to a reference epoch.
-
-    Simulation times are seconds since ``epoch``; the rotation angle is
-    ``gmst(epoch) + omega_E t``.
-    """
+    """Earth rotation angle ``gmst(epoch) + omega_E t``, t in s past ``epoch``."""
 
     epoch: datetime
     dut1_s: float = 0.0

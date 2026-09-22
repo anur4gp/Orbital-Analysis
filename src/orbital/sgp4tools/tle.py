@@ -1,8 +1,4 @@
-"""TLE parsing and validation.
-
-A TLE is a fixed-column record: fields are located by column position, not
-by delimiter, so parsing is slicing. See CLAUDE.md for the column tables.
-"""
+"""Fixed-column TLE parsing and checksum validation."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -26,10 +22,7 @@ def check_line(line: str) -> bool:
 
 
 def _decimal_point_assumed(field: str) -> float:
-    """Decode a TLE exponential field, e.g. '30074-3' -> 0.30074e-3.
-
-    The leading decimal point and the exponent's 'e' are both omitted.
-    """
+    """Decode a TLE exponential field, e.g. '30074-3' -> 0.30074e-3."""
     field = field.strip()
     if not field or set(field) <= {"0", "+", "-", " "}:
         return 0.0
@@ -81,35 +74,13 @@ class TLE:
         return 1440.0 / self.mean_motion
 
     def age_days(self, at: datetime | None = None) -> float:
-        """Days between the TLE epoch and `at` (default: now).
-
-        SGP4 error grows roughly 1-3 km/day past epoch, so this is the first
-        thing to check before trusting a propagated state.
-        """
+        """Days between the TLE epoch and ``at`` (default: now)."""
         at = at or datetime.now(UTC)
         return (at - self.epoch).total_seconds() / 86400.0
 
 
 def parse_tle(line1: str, line2: str, name: str = "") -> TLE:
-    """Parse one two-line element set by column position.
-
-    Parameters
-    ----------
-    line1, line2
-        The two element-set lines, with or without trailing newlines.
-    name
-        Optional object name from the preceding line-0 record.
-
-    Returns
-    -------
-    TLE
-
-    Raises
-    ------
-    ValueError
-        If either line fails checksum or length validation, the lines are out
-        of order, or the two lines carry different catalog numbers.
-    """
+    """Parse one element set; raises ValueError on checksum, order or catalog mismatch."""
     line1, line2 = line1.rstrip("\r\n"), line2.rstrip("\r\n")
     for n, line in ((1, line1), (2, line2)):
         if not check_line(line):
@@ -142,11 +113,7 @@ def parse_tle(line1: str, line2: str, name: str = "") -> TLE:
 
 
 def parse_tle_file(text: str) -> list[TLE]:
-    """Parse a CelesTrak TLE response: repeating name/line1/line2 triples.
-
-    Bulk GROUP pulls include a name line; single-satellite pulls in TLE
-    format do too. Files without name lines are handled as well.
-    """
+    """Parse a TLE file, with or without name lines."""
     lines = [ln.rstrip() for ln in text.splitlines() if ln.strip()]
     out: list[TLE] = []
     i = 0

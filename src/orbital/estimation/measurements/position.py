@@ -1,9 +1,4 @@
-"""Direct position fix (e.g. an onboard GNSS solution), ECI_J2000, km.
-
-Linear in the state, so the EKF and UKF must agree exactly on it -- which is
-what makes it useful as a reference case, and it shows that adding a sensor
-needs no filter changes.
-"""
+"""Direct position fix (e.g. onboard GNSS); linear, so EKF and UKF agree exactly."""
 from __future__ import annotations
 
 from dataclasses import dataclass
